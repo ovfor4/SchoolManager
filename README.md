@@ -95,3 +95,14 @@ When the backend is running, it is also available at:
 ```text
 http://localhost:8080/api/openapi.json
 ```
+
+
+# Note
+
+⚠️ NOT COMPATIBLE WITH WINDOWS, LINUX ONLY (RECOMMEND DEBIAN/UBUNTU/CENTOS/REDHAT)
+
+Copyright (C) _ov4
+
+This is free software; see the source for copying conditions. There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+under GNU AFFERO GENERAL PUBLIC LICENSE (AGPL) Version 3
