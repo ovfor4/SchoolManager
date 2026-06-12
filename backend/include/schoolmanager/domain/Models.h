@@ -25,6 +25,30 @@ struct Grade {
     std::int64_t updated_at{};
 };
 
+struct StudentInfoDefinition {
+    std::string id;
+    std::string name;
+    std::string display_name;
+    std::string value_type;
+    std::int64_t created_at{};
+    std::int64_t updated_at{};
+};
+
+struct StudentInfoValue {
+    std::string field_id;
+    std::string value;
+    std::int64_t updated_at{};
+};
+
+struct StudentInfoField {
+    std::string id;
+    std::string name;
+    std::string display_name;
+    std::string value_type;
+    std::string value;
+    std::int64_t updated_at{};
+};
+
 struct StoredFile {
     std::string id;
     std::string original_name;
@@ -38,6 +62,7 @@ struct StoredFile {
 
 struct StudentDetail {
     StudentSummary student;
+    std::vector<StudentInfoField> info_fields;
     std::vector<Grade> grades;
     std::vector<StoredFile> files;
 };
@@ -47,5 +72,9 @@ std::int64_t unixTimeMillis();
 std::string createId();
 
 bool isSafeId(std::string_view value);
+
+bool isAllowedStudentInfoValueType(std::string_view valueType);
+
+bool isValidStudentInfoValue(std::string_view valueType, std::string_view value);
 
 }  // namespace schoolmanager::domain

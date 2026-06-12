@@ -6,10 +6,13 @@ import { useSchoolSocket } from './api/useSchoolSocket';
 import { useStudentSocket } from './api/useStudentSocket';
 import { FilePanel } from './components/FilePanel';
 import { GradeTable } from './components/GradeTable';
-import { StudentSidebar } from './components/StudentSidebar';
+import { StudentInfoDefinitionsPage } from './components/StudentInfoDefinitionsPage';
+import { StudentInfoPanel } from './components/StudentInfoPanel';
+import { AppView, StudentSidebar } from './components/StudentSidebar';
 
 export function App() {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<AppView>('student');
   const savingCount = useIsMutating();
 
   const studentsQuery = useQuery({
@@ -34,28 +37,43 @@ export function App() {
   const detailQuery = useQuery({
     queryKey: ['student', selectedStudentId],
     queryFn: () => getStudent(selectedStudentId!),
-    enabled: Boolean(selectedStudentId),
+    enabled: activeView === 'student' && Boolean(selectedStudentId),
   });
 
   const schoolSocketStatus = useSchoolSocket();
-  const studentSocketStatus = useStudentSocket(selectedStudentId);
+  const studentSocketStatus = useStudentSocket(activeView === 'student' ? selectedStudentId : null);
   const socketStatus =
     schoolSocketStatus === 'connected' || studentSocketStatus === 'connected' ? 'connected' : 'reconnecting';
+
+  const openStudent = (studentId: string | null) => {
+    setActiveView('student');
+    setSelectedStudentId(studentId);
+  };
 
   return (
     <main className="appShell">
       <StudentSidebar
         students={studentsQuery.data ?? []}
         selectedStudentId={selectedStudentId}
+        activeView={activeView}
         loading={studentsQuery.isLoading}
-        onSelect={setSelectedStudentId}
+        onSelect={openStudent}
+        onOpenGlobalSettings={() => setActiveView('global-settings')}
       />
 
       <section className="workArea">
         <header className="topBar">
           <div>
-            <h1>{detailQuery.data?.student.display_name ?? 'SchoolManager'}</h1>
-            <p>{detailQuery.data?.student.folder_path ?? 'Student grade workspace'}</p>
+            <h1>
+              {activeView === 'global-settings'
+                ? 'Global Settings'
+                : detailQuery.data?.student.display_name ?? 'SchoolManager'}
+            </h1>
+            <p>
+              {activeView === 'global-settings'
+                ? 'School-wide configuration'
+                : detailQuery.data?.student.folder_path ?? 'Student grade workspace'}
+            </p>
           </div>
           <div className="statusCluster">
             <span className={`statusPill ${socketStatus === 'connected' ? 'ok' : 'muted'}`}>
@@ -69,7 +87,9 @@ export function App() {
           </div>
         </header>
 
-        {!selectedStudentId ? (
+        {activeView === 'global-settings' ? (
+          <StudentInfoDefinitionsPage />
+        ) : !selectedStudentId ? (
           <div className="emptyState">Create a student to start.</div>
         ) : detailQuery.isLoading ? (
           <div className="emptyState">Loading student data...</div>
@@ -77,6 +97,7 @@ export function App() {
           <div className="errorState">{detailQuery.error.message}</div>
         ) : detailQuery.data ? (
           <div className="contentStack">
+            <StudentInfoPanel studentId={selectedStudentId} infoFields={detailQuery.data.info_fields} />
             <GradeTable studentId={selectedStudentId} grades={detailQuery.data.grades} />
             <FilePanel studentId={selectedStudentId} files={detailQuery.data.files} />
           </div>

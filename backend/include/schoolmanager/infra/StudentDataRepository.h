@@ -17,6 +17,15 @@ class StudentDataRepository {
 
     void initializeStudent(std::string_view studentId);
 
+    std::vector<domain::StudentInfoValue> listStudentInfoValues(std::string_view studentId);
+    std::optional<domain::StudentInfoValue> getStudentInfoValue(std::string_view studentId,
+                                                                std::string_view fieldId);
+    std::optional<domain::StudentInfoValue> patchStudentInfoValue(std::string_view studentId,
+                                                                  std::string_view fieldId,
+                                                                  std::string_view valueType,
+                                                                  std::string value);
+    bool deleteStudentInfoValue(std::string_view studentId, std::string_view fieldId);
+
     domain::Grade createGrade(std::string_view studentId,
                               std::string title,
                               std::string score,

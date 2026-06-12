@@ -16,6 +16,30 @@ Json::Value toJson(const domain::StudentSummary& student)
     return value;
 }
 
+Json::Value toJson(const domain::StudentInfoDefinition& field)
+{
+    Json::Value value(Json::objectValue);
+    value["id"] = field.id;
+    value["name"] = field.name;
+    value["display_name"] = field.display_name;
+    value["value_type"] = field.value_type;
+    value["created_at"] = Json::Int64(field.created_at);
+    value["updated_at"] = Json::Int64(field.updated_at);
+    return value;
+}
+
+Json::Value toJson(const domain::StudentInfoField& field)
+{
+    Json::Value value(Json::objectValue);
+    value["id"] = field.id;
+    value["name"] = field.name;
+    value["display_name"] = field.display_name;
+    value["value_type"] = field.value_type;
+    value["value"] = field.value;
+    value["updated_at"] = Json::Int64(field.updated_at);
+    return value;
+}
+
 Json::Value toJson(const domain::Grade& grade)
 {
     Json::Value value(Json::objectValue);
@@ -48,6 +72,24 @@ Json::Value toJsonArray(const std::vector<domain::StudentSummary>& students)
     Json::Value array(Json::arrayValue);
     for (const auto& student : students) {
         array.append(toJson(student));
+    }
+    return array;
+}
+
+Json::Value toJsonArray(const std::vector<domain::StudentInfoDefinition>& fields)
+{
+    Json::Value array(Json::arrayValue);
+    for (const auto& field : fields) {
+        array.append(toJson(field));
+    }
+    return array;
+}
+
+Json::Value toJsonArray(const std::vector<domain::StudentInfoField>& fields)
+{
+    Json::Value array(Json::arrayValue);
+    for (const auto& field : fields) {
+        array.append(toJson(field));
     }
     return array;
 }

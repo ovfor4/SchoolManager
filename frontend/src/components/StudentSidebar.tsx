@@ -1,17 +1,28 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, UserRound } from 'lucide-react';
+import { ListChecks, Plus, Trash2, UserRound } from 'lucide-react';
 import { createStudent, deleteStudent, patchStudent } from '../api/client';
 import type { Student, StudentDetail } from '../api/types';
+
+export type AppView = 'student' | 'global-settings';
 
 type StudentSidebarProps = {
   students: Student[];
   selectedStudentId: string | null;
+  activeView: AppView;
   loading: boolean;
   onSelect: (studentId: string | null) => void;
+  onOpenGlobalSettings: () => void;
 };
 
-export function StudentSidebar({ students, selectedStudentId, loading, onSelect }: StudentSidebarProps) {
+export function StudentSidebar({
+  students,
+  selectedStudentId,
+  activeView,
+  loading,
+  onSelect,
+  onOpenGlobalSettings,
+}: StudentSidebarProps) {
   const [displayName, setDisplayName] = useState('');
   const [studentDrafts, setStudentDrafts] = useState<Record<string, string>>({});
   const [dirtyStudentNames, setDirtyStudentNames] = useState<Record<string, boolean>>({});
@@ -124,17 +135,14 @@ export function StudentSidebar({ students, selectedStudentId, loading, onSelect 
         </div>
       </div>
 
-      <form className="studentCreate" onSubmit={submit}>
-        <input
-          value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)}
-          placeholder="Student name"
-          aria-label="Student name"
-        />
-        <button type="submit" aria-label="Create student" disabled={createMutation.isPending}>
-          <Plus size={18} />
-        </button>
-      </form>
+      <button
+        type="button"
+        className={`sidebarNavButton ${activeView === 'global-settings' ? 'active' : ''}`}
+        onClick={onOpenGlobalSettings}
+      >
+        <ListChecks size={17} />
+        <span>Global Settings</span>
+      </button>
 
       <div className="studentList">
         {loading ? (
@@ -146,7 +154,12 @@ export function StudentSidebar({ students, selectedStudentId, loading, onSelect 
             const draftName = studentDrafts[student.id] ?? student.display_name;
             const isDeleting = deleteMutation.isPending && deleteMutation.variables === student.id;
             return (
-              <div key={student.id} className={`studentItem ${student.id === selectedStudentId ? 'active' : ''}`}>
+              <div
+                key={student.id}
+                className={`studentItem ${
+                  activeView === 'student' && student.id === selectedStudentId ? 'active' : ''
+                }`}
+              >
                 <button
                   type="button"
                   className="studentSelectButton"
@@ -178,6 +191,18 @@ export function StudentSidebar({ students, selectedStudentId, loading, onSelect 
           })
         )}
       </div>
+
+      <form className="studentCreate" onSubmit={submit}>
+        <input
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          placeholder="Student name"
+          aria-label="Student name"
+        />
+        <button type="submit" aria-label="Create student" disabled={createMutation.isPending}>
+          <Plus size={18} />
+        </button>
+      </form>
       {patchMutation.error ? <div className="inlineError">{patchMutation.error.message}</div> : null}
       {deleteMutation.error ? <div className="inlineError">{deleteMutation.error.message}</div> : null}
     </aside>

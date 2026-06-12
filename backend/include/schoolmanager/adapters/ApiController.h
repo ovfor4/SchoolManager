@@ -23,9 +23,27 @@ class ApiController : public drogon::HttpController<ApiController, false> {
     ADD_METHOD_TO(ApiController::openApi, "/api/openapi.json", drogon::Get);
     ADD_METHOD_TO(ApiController::listStudents, "/api/students", drogon::Get);
     ADD_METHOD_TO(ApiController::createStudent, "/api/students", drogon::Post);
+    ADD_METHOD_TO(ApiController::listStudentInfoDefinitions,
+                  "/api/student-info-fields",
+                  drogon::Get);
+    ADD_METHOD_TO(ApiController::createStudentInfoDefinition,
+                  "/api/student-info-fields",
+                  drogon::Post);
+    ADD_METHOD_TO(ApiController::patchStudentInfoDefinition,
+                  "/api/student-info-fields/{1}",
+                  drogon::Patch);
+    ADD_METHOD_TO(ApiController::deleteStudentInfoDefinition,
+                  "/api/student-info-fields/{1}",
+                  drogon::Delete);
     ADD_METHOD_TO(ApiController::getStudent, "/api/students/{1}", drogon::Get);
     ADD_METHOD_TO(ApiController::patchStudent, "/api/students/{1}", drogon::Patch);
     ADD_METHOD_TO(ApiController::deleteStudent, "/api/students/{1}", drogon::Delete);
+    ADD_METHOD_TO(ApiController::listStudentInfoFields,
+                  "/api/students/{1}/info-fields",
+                  drogon::Get);
+    ADD_METHOD_TO(ApiController::patchStudentInfoValue,
+                  "/api/students/{1}/info-fields/{2}",
+                  drogon::Patch);
     ADD_METHOD_TO(ApiController::listGrades, "/api/students/{1}/grades", drogon::Get);
     ADD_METHOD_TO(ApiController::createGrade, "/api/students/{1}/grades", drogon::Post);
     ADD_METHOD_TO(ApiController::patchGrade, "/api/students/{1}/grades/{2}", drogon::Patch);
@@ -45,6 +63,16 @@ class ApiController : public drogon::HttpController<ApiController, false> {
                       std::function<void(const drogon::HttpResponsePtr&)>&& callback);
     void createStudent(const drogon::HttpRequestPtr& request,
                        std::function<void(const drogon::HttpResponsePtr&)>&& callback);
+    void listStudentInfoDefinitions(const drogon::HttpRequestPtr& request,
+                                    std::function<void(const drogon::HttpResponsePtr&)>&& callback);
+    void createStudentInfoDefinition(const drogon::HttpRequestPtr& request,
+                                     std::function<void(const drogon::HttpResponsePtr&)>&& callback);
+    void patchStudentInfoDefinition(const drogon::HttpRequestPtr& request,
+                                    std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                                    std::string fieldId);
+    void deleteStudentInfoDefinition(const drogon::HttpRequestPtr& request,
+                                     std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                                     std::string fieldId);
     void getStudent(const drogon::HttpRequestPtr& request,
                     std::function<void(const drogon::HttpResponsePtr&)>&& callback,
                     std::string studentId);
@@ -54,6 +82,13 @@ class ApiController : public drogon::HttpController<ApiController, false> {
     void deleteStudent(const drogon::HttpRequestPtr& request,
                        std::function<void(const drogon::HttpResponsePtr&)>&& callback,
                        std::string studentId);
+    void listStudentInfoFields(const drogon::HttpRequestPtr& request,
+                               std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                               std::string studentId);
+    void patchStudentInfoValue(const drogon::HttpRequestPtr& request,
+                               std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                               std::string studentId,
+                               std::string fieldId);
     void listGrades(const drogon::HttpRequestPtr& request,
                     std::function<void(const drogon::HttpResponsePtr&)>&& callback,
                     std::string studentId);

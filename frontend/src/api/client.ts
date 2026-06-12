@@ -1,4 +1,15 @@
-import type { Grade, GradePatch, StoredFile, Student, StudentDetail, StudentPatch } from './types';
+import type {
+  Grade,
+  GradePatch,
+  StoredFile,
+  Student,
+  StudentDetail,
+  StudentInfoDefinition,
+  StudentInfoDefinitionPatch,
+  StudentInfoField,
+  StudentInfoValuePatch,
+  StudentPatch,
+} from './types';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -60,6 +71,56 @@ export async function deleteStudent(studentId: string): Promise<void> {
 
 export async function getStudent(studentId: string): Promise<StudentDetail> {
   return request<StudentDetail>(`/api/students/${studentId}`);
+}
+
+export async function listStudentInfoDefinitions(): Promise<StudentInfoDefinition[]> {
+  const data = await request<{ info_field_definitions: StudentInfoDefinition[] }>('/api/student-info-fields');
+  return data.info_field_definitions;
+}
+
+export async function createStudentInfoDefinition(
+  payload: Pick<StudentInfoDefinition, 'name' | 'display_name' | 'value_type'>,
+): Promise<StudentInfoDefinition> {
+  const data = await request<{ info_field_definition: StudentInfoDefinition }>('/api/student-info-fields', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return data.info_field_definition;
+}
+
+export async function patchStudentInfoDefinition(
+  fieldId: string,
+  patch: StudentInfoDefinitionPatch,
+): Promise<StudentInfoDefinition> {
+  const data = await request<{ info_field_definition: StudentInfoDefinition }>(
+    `/api/student-info-fields/${fieldId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    },
+  );
+  return data.info_field_definition;
+}
+
+export async function deleteStudentInfoDefinition(fieldId: string): Promise<void> {
+  await request<{ deleted: boolean }>(`/api/student-info-fields/${fieldId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function patchStudentInfoValue(
+  studentId: string,
+  fieldId: string,
+  patch: StudentInfoValuePatch,
+): Promise<StudentInfoField> {
+  const data = await request<{ info_field: StudentInfoField }>(
+    `/api/students/${studentId}/info-fields/${fieldId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    },
+  );
+  return data.info_field;
 }
 
 export async function createGrade(studentId: string): Promise<Grade> {

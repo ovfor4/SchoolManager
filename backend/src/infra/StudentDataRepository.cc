@@ -7,6 +7,15 @@ namespace schoolmanager::infra {
 
 namespace {
 
+domain::StudentInfoValue readStudentInfoValue(Statement& stmt)
+{
+    return domain::StudentInfoValue{
+        .field_id = stmt.columnText(0),
+        .value = stmt.columnText(1),
+        .updated_at = stmt.columnInt64(2),
+    };
+}
+
 domain::Grade readGrade(Statement& stmt)
 {
     return domain::Grade{
@@ -40,6 +49,22 @@ bool isAllowedGradeField(const std::string& field)
            field == "occurred_on" || field == "notes";
 }
 
+void validateStudentInfoValue(std::string_view valueType, std::string_view value)
+{
+    if (!domain::isAllowedStudentInfoValueType(valueType)) {
+        throw std::runtime_error("student info type must be INTEGER, STRING, or DATE");
+    }
+    if (!domain::isValidStudentInfoValue(valueType, value)) {
+        if (valueType == "INTEGER") {
+            throw std::runtime_error("student info value must be an integer");
+        }
+        if (valueType == "DATE") {
+            throw std::runtime_error("student info value must be a YYYY-MM-DD date");
+        }
+        throw std::runtime_error("student info value is invalid");
+    }
+}
+
 }  // namespace
 
 StudentDataRepository::StudentDataRepository(std::shared_ptr<LruSqlitePool> pool,
@@ -69,6 +94,13 @@ void StudentDataRepository::initializeStudent(std::string_view studentId)
         );
     )SQL");
     db->executeUnlocked(R"SQL(
+        CREATE TABLE IF NOT EXISTS student_info_values (
+            field_id TEXT PRIMARY KEY,
+            value TEXT NOT NULL DEFAULT '',
+            updated_at INTEGER NOT NULL
+        );
+    )SQL");
+    db->executeUnlocked(R"SQL(
         CREATE TABLE IF NOT EXISTS files (
             id TEXT PRIMARY KEY,
             original_name TEXT NOT NULL,
@@ -80,6 +112,95 @@ void StudentDataRepository::initializeStudent(std::string_view studentId)
             updated_at INTEGER NOT NULL
         );
     )SQL");
+}
+
+std::vector<domain::StudentInfoValue> StudentDataRepository::listStudentInfoValues(
+    std::string_view studentId)
+{
+    initializeStudent(studentId);
+    auto db = acquireStudentDb(studentId);
+    auto guard = db->lock();
+    auto stmt = db->prepare(R"SQL(
+        SELECT field_id, value, updated_at
+        FROM student_info_values;
+    )SQL");
+
+    std::vector<domain::StudentInfoValue> values;
+    while (stmt.step()) {
+        values.push_back(readStudentInfoValue(stmt));
+    }
+    return values;
+}
+
+std::optional<domain::StudentInfoValue> StudentDataRepository::getStudentInfoValue(
+    std::string_view studentId,
+    std::string_view fieldId)
+{
+    if (!domain::isSafeId(fieldId)) {
+        return std::nullopt;
+    }
+    initializeStudent(studentId);
+    auto db = acquireStudentDb(studentId);
+    auto guard = db->lock();
+    auto stmt = db->prepare(R"SQL(
+        SELECT field_id, value, updated_at
+        FROM student_info_values
+        WHERE field_id = ?;
+    )SQL");
+    stmt.bindText(1, fieldId);
+    if (!stmt.step()) {
+        return std::nullopt;
+    }
+    return readStudentInfoValue(stmt);
+}
+
+std::optional<domain::StudentInfoValue> StudentDataRepository::patchStudentInfoValue(
+    std::string_view studentId,
+    std::string_view fieldId,
+    std::string_view valueType,
+    std::string value)
+{
+    if (!domain::isSafeId(fieldId)) {
+        return std::nullopt;
+    }
+    validateStudentInfoValue(valueType, value);
+    initializeStudent(studentId);
+    const auto updatedAt = domain::unixTimeMillis();
+
+    auto db = acquireStudentDb(studentId);
+    {
+        auto guard = db->lock();
+        auto stmt = db->prepare(R"SQL(
+            INSERT INTO student_info_values (field_id, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(field_id) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at;
+        )SQL");
+        stmt.bindText(1, fieldId);
+        stmt.bindText(2, value);
+        stmt.bindInt64(3, updatedAt);
+        stmt.executeDone();
+        if (sqlite3_changes(db->raw()) == 0) {
+            return std::nullopt;
+        }
+    }
+
+    return getStudentInfoValue(studentId, fieldId);
+}
+
+bool StudentDataRepository::deleteStudentInfoValue(std::string_view studentId, std::string_view fieldId)
+{
+    if (!domain::isSafeId(fieldId)) {
+        return false;
+    }
+    initializeStudent(studentId);
+    auto db = acquireStudentDb(studentId);
+    auto guard = db->lock();
+    auto stmt = db->prepare("DELETE FROM student_info_values WHERE field_id = ?;");
+    stmt.bindText(1, fieldId);
+    stmt.executeDone();
+    return sqlite3_changes(db->raw()) > 0;
 }
 
 domain::Grade StudentDataRepository::createGrade(std::string_view studentId,

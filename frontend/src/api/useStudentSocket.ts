@@ -40,6 +40,14 @@ export function useStudentSocket(studentId: string | null) {
           if (!old) {
             return old;
           }
+          if (message.type === 'student_info.updated') {
+            return {
+              ...old,
+              info_fields: old.info_fields.map((field) =>
+                field.id === message.info_field.id ? message.info_field : field,
+              ),
+            };
+          }
           if (message.type === 'grade.created') {
             const exists = old.grades.some((grade) => grade.id === message.grade.id);
             return {

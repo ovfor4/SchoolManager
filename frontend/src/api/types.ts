@@ -16,6 +16,26 @@ export type Grade = {
   updated_at: number;
 };
 
+export type StudentInfoValueType = 'INTEGER' | 'STRING' | 'DATE';
+
+export type StudentInfoDefinition = {
+  id: string;
+  name: string;
+  display_name: string;
+  value_type: StudentInfoValueType;
+  created_at: number;
+  updated_at: number;
+};
+
+export type StudentInfoField = {
+  id: string;
+  name: string;
+  display_name: string;
+  value_type: StudentInfoValueType;
+  value: string;
+  updated_at: number;
+};
+
 export type StoredFile = {
   id: string;
   original_name: string;
@@ -29,11 +49,16 @@ export type StoredFile = {
 
 export type StudentDetail = {
   student: Student;
+  info_fields: StudentInfoField[];
   grades: Grade[];
   files: StoredFile[];
 };
 
 export type StudentPatch = Partial<Pick<Student, 'display_name'>>;
+
+export type StudentInfoDefinitionPatch = Partial<Pick<StudentInfoDefinition, 'name' | 'display_name' | 'value_type'>>;
+
+export type StudentInfoValuePatch = Pick<StudentInfoField, 'value'>;
 
 export type GradePatch = Partial<Pick<Grade, 'title' | 'score' | 'max_score' | 'occurred_on' | 'notes'>>;
 
@@ -51,6 +76,29 @@ export type WsMessage =
       resource: 'student';
       id: string;
       field_id: string;
+    }
+  | {
+      type: 'student_info_definition.created' | 'student_info_definition.updated';
+      resource: 'student_info_definition';
+      id: string;
+      field_id: string;
+      info_field_definition: StudentInfoDefinition;
+      changed_fields?: Array<keyof StudentInfoDefinitionPatch>;
+    }
+  | {
+      type: 'student_info_definition.deleted';
+      resource: 'student_info_definition';
+      id: string;
+      field_id: string;
+    }
+  | {
+      type: 'student_info.updated';
+      student_id: string;
+      resource: 'student_info';
+      id: string;
+      field_id: string;
+      info_field: StudentInfoField;
+      changed_fields?: Array<keyof StudentInfoValuePatch>;
     }
   | {
       type: 'grade.created' | 'grade.updated';

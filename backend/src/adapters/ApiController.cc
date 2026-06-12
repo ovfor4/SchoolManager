@@ -7,10 +7,12 @@
 #include <drogon/MultiPart.h>
 #include <drogon/drogon.h>
 
+#include <algorithm>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace schoolmanager::adapters {
 
@@ -62,6 +64,67 @@ std::string fieldIdForPatch(std::string_view gradeId,
     return "grade:" + std::string(gradeId);
 }
 
+std::string fieldIdForStudentInfoValuePatch(std::string_view studentId, std::string_view fieldId)
+{
+    return "student_info_value:" + std::string(studentId) + ":" + std::string(fieldId) + ":value";
+}
+
+void emitStudentInfoMessage(const std::shared_ptr<BroadcastHub>& hub,
+                            const std::string& type,
+                            std::string_view studentId,
+                            const domain::StudentInfoField& field,
+                            const std::string& fieldId,
+                            const Json::Value& changedFields = Json::Value(Json::arrayValue))
+{
+    Json::Value message(Json::objectValue);
+    message["type"] = type;
+    message["student_id"] = std::string(studentId);
+    message["resource"] = "student_info";
+    message["id"] = field.id;
+    message["field_id"] = fieldId;
+    message["info_field"] = toJson(field);
+    message["changed_fields"] = changedFields;
+    hub->broadcast(std::string(studentId), message);
+}
+
+std::string fieldIdForStudentInfoDefinitionPatch(
+    std::string_view fieldId,
+    const std::map<std::string, std::string>& changes)
+{
+    if (changes.size() == 1) {
+        return "student_info_definition:" + std::string(fieldId) + ":" + changes.begin()->first;
+    }
+    return "student_info_definition:" + std::string(fieldId);
+}
+
+void emitStudentInfoDefinitionMessage(const std::shared_ptr<BroadcastHub>& hub,
+                                      const std::string& type,
+                                      const domain::StudentInfoDefinition& field,
+                                      const std::string& fieldId,
+                                      const Json::Value& changedFields =
+                                          Json::Value(Json::arrayValue))
+{
+    Json::Value message(Json::objectValue);
+    message["type"] = type;
+    message["resource"] = "student_info_definition";
+    message["id"] = field.id;
+    message["field_id"] = fieldId;
+    message["info_field_definition"] = toJson(field);
+    message["changed_fields"] = changedFields;
+    hub->broadcast(std::string(config::schoolWebSocketRoomId), message);
+}
+
+void emitStudentInfoDefinitionDeletedMessage(const std::shared_ptr<BroadcastHub>& hub,
+                                             std::string_view fieldId)
+{
+    Json::Value message(Json::objectValue);
+    message["type"] = "student_info_definition.deleted";
+    message["resource"] = "student_info_definition";
+    message["id"] = std::string(fieldId);
+    message["field_id"] = "student_info_definition:" + std::string(fieldId);
+    hub->broadcast(std::string(config::schoolWebSocketRoomId), message);
+}
+
 void emitGradeMessage(const std::shared_ptr<BroadcastHub>& hub,
                       const std::string& type,
                       std::string_view studentId,
@@ -103,6 +166,48 @@ void emitStudentDeletedMessage(const std::shared_ptr<BroadcastHub>& hub, std::st
     message["id"] = std::string(studentId);
     message["field_id"] = "student:" + std::string(studentId);
     hub->broadcast(std::string(config::schoolWebSocketRoomId), message);
+}
+
+std::vector<domain::StudentInfoField> mergeStudentInfoFields(
+    const std::vector<domain::StudentInfoDefinition>& definitions,
+    const std::vector<domain::StudentInfoValue>& values)
+{
+    std::unordered_map<std::string, domain::StudentInfoValue> valuesByFieldId;
+    for (const auto& value : values) {
+        valuesByFieldId.emplace(value.field_id, value);
+    }
+
+    std::vector<domain::StudentInfoField> fields;
+    fields.reserve(definitions.size());
+    for (const auto& definition : definitions) {
+        domain::StudentInfoField field{
+            .id = definition.id,
+            .name = definition.name,
+            .display_name = definition.display_name,
+            .value_type = definition.value_type,
+            .value = "",
+            .updated_at = definition.updated_at,
+        };
+
+        const auto value = valuesByFieldId.find(definition.id);
+        if (value != valuesByFieldId.end()) {
+            if (domain::isValidStudentInfoValue(definition.value_type, value->second.value)) {
+                field.value = value->second.value;
+            }
+            field.updated_at = std::max(definition.updated_at, value->second.updated_at);
+        }
+
+        fields.push_back(std::move(field));
+    }
+    return fields;
+}
+
+domain::StudentInfoField mergeStudentInfoField(
+    const domain::StudentInfoDefinition& definition,
+    const domain::StudentInfoValue& value)
+{
+    auto fields = mergeStudentInfoFields({definition}, {value});
+    return fields.front();
 }
 
 }  // namespace
@@ -174,6 +279,115 @@ void ApiController::createStudent(const drogon::HttpRequestPtr& request, Callbac
     }
 }
 
+void ApiController::listStudentInfoDefinitions(const drogon::HttpRequestPtr&, Callback&& callback)
+{
+    try {
+        Json::Value body(Json::objectValue);
+        body["info_field_definitions"] = toJsonArray(school_index_->listStudentInfoDefinitions());
+        callback(jsonResponse(std::move(body)));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k500InternalServerError));
+    }
+}
+
+void ApiController::createStudentInfoDefinition(const drogon::HttpRequestPtr& request,
+                                                Callback&& callback)
+{
+    try {
+        const auto json = request->getJsonObject();
+        if (!json || !json->isObject() || !json->isMember("name")) {
+            callback(errorResponse("name is required", drogon::k400BadRequest));
+            return;
+        }
+
+        auto field = school_index_->createStudentInfoDefinition(
+            bodyString(*json, "name"),
+            bodyString(*json, "display_name"),
+            bodyString(*json, "value_type", "STRING"));
+
+        Json::Value responseBody(Json::objectValue);
+        responseBody["info_field_definition"] = toJson(field);
+        callback(jsonResponse(std::move(responseBody), drogon::k201Created));
+
+        emitStudentInfoDefinitionMessage(broadcast_hub_,
+                                         "student_info_definition.created",
+                                         field,
+                                         "student_info_definition:" + field.id);
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
+    }
+}
+
+void ApiController::patchStudentInfoDefinition(const drogon::HttpRequestPtr& request,
+                                               Callback&& callback,
+                                               std::string fieldId)
+{
+    try {
+        const auto json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            callback(errorResponse("JSON object body is required", drogon::k400BadRequest));
+            return;
+        }
+
+        static const std::vector<std::string> allowedFields{
+            "name", "display_name", "value_type"};
+        std::map<std::string, std::string> changes;
+        for (const auto& field : allowedFields) {
+            if (json->isMember(field)) {
+                changes.emplace(field, scalarToString((*json)[field]));
+            }
+        }
+        if (changes.empty()) {
+            callback(errorResponse("no supported student info definition fields provided",
+                                   drogon::k400BadRequest));
+            return;
+        }
+
+        const auto updated = school_index_->patchStudentInfoDefinition(fieldId, changes);
+        if (!updated) {
+            callback(errorResponse("student info field definition not found", drogon::k404NotFound));
+            return;
+        }
+
+        Json::Value responseBody(Json::objectValue);
+        responseBody["info_field_definition"] = toJson(*updated);
+        responseBody["changed_fields"] = changedFieldsJson(changes);
+        callback(jsonResponse(std::move(responseBody)));
+
+        emitStudentInfoDefinitionMessage(broadcast_hub_,
+                                         "student_info_definition.updated",
+                                         *updated,
+                                         fieldIdForStudentInfoDefinitionPatch(fieldId, changes),
+                                         changedFieldsJson(changes));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
+    }
+}
+
+void ApiController::deleteStudentInfoDefinition(const drogon::HttpRequestPtr&,
+                                                Callback&& callback,
+                                                std::string fieldId)
+{
+    try {
+        if (!school_index_->deleteStudentInfoDefinition(fieldId)) {
+            callback(errorResponse("student info field definition not found", drogon::k404NotFound));
+            return;
+        }
+
+        for (const auto& student : school_index_->listStudents()) {
+            student_data_->deleteStudentInfoValue(student.id, fieldId);
+        }
+
+        Json::Value body(Json::objectValue);
+        body["deleted"] = true;
+        callback(jsonResponse(std::move(body)));
+
+        emitStudentInfoDefinitionDeletedMessage(broadcast_hub_, fieldId);
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
+    }
+}
+
 void ApiController::getStudent(const drogon::HttpRequestPtr&, Callback&& callback, std::string studentId)
 {
     try {
@@ -185,6 +399,9 @@ void ApiController::getStudent(const drogon::HttpRequestPtr&, Callback&& callbac
 
         Json::Value body(Json::objectValue);
         body["student"] = toJson(*student);
+        body["info_fields"] = toJsonArray(mergeStudentInfoFields(
+            school_index_->listStudentInfoDefinitions(),
+            student_data_->listStudentInfoValues(studentId)));
         body["grades"] = toJsonArray(student_data_->listGrades(studentId));
         body["files"] = toJsonArray(student_data_->listFiles(studentId));
         callback(jsonResponse(std::move(body)));
@@ -240,6 +457,77 @@ void ApiController::deleteStudent(const drogon::HttpRequestPtr&,
         emitStudentDeletedMessage(broadcast_hub_, studentId);
     } catch (const std::exception& e) {
         callback(errorResponse(e.what(), drogon::k500InternalServerError));
+    }
+}
+
+void ApiController::listStudentInfoFields(const drogon::HttpRequestPtr&,
+                                          Callback&& callback,
+                                          std::string studentId)
+{
+    try {
+        if (!studentExists(studentId)) {
+            callback(errorResponse("student not found", drogon::k404NotFound));
+            return;
+        }
+        Json::Value body(Json::objectValue);
+        body["info_fields"] = toJsonArray(mergeStudentInfoFields(
+            school_index_->listStudentInfoDefinitions(),
+            student_data_->listStudentInfoValues(studentId)));
+        callback(jsonResponse(std::move(body)));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k500InternalServerError));
+    }
+}
+
+void ApiController::patchStudentInfoValue(const drogon::HttpRequestPtr& request,
+                                          Callback&& callback,
+                                          std::string studentId,
+                                          std::string fieldId)
+{
+    try {
+        if (!studentExists(studentId)) {
+            callback(errorResponse("student not found", drogon::k404NotFound));
+            return;
+        }
+
+        const auto json = request->getJsonObject();
+        if (!json || !json->isObject() || !json->isMember("value")) {
+            callback(errorResponse("value is required", drogon::k400BadRequest));
+            return;
+        }
+
+        const auto definition = school_index_->getStudentInfoDefinition(fieldId);
+        if (!definition) {
+            callback(errorResponse("student info field definition not found", drogon::k404NotFound));
+            return;
+        }
+
+        const auto updated = student_data_->patchStudentInfoValue(
+            studentId,
+            fieldId,
+            definition->value_type,
+            scalarToString((*json)["value"]));
+        if (!updated) {
+            callback(errorResponse("student info value not found", drogon::k404NotFound));
+            return;
+        }
+        school_index_->touchStudent(studentId, updated->updated_at);
+
+        const auto field = mergeStudentInfoField(*definition, *updated);
+        Json::Value responseBody(Json::objectValue);
+        responseBody["info_field"] = toJson(field);
+        std::map<std::string, std::string> changes{{"value", field.value}};
+        responseBody["changed_fields"] = changedFieldsJson(changes);
+        callback(jsonResponse(std::move(responseBody)));
+
+        emitStudentInfoMessage(broadcast_hub_,
+                               "student_info.updated",
+                               studentId,
+                               field,
+                               fieldIdForStudentInfoValuePatch(studentId, fieldId),
+                               changedFieldsJson(changes));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
     }
 }
 

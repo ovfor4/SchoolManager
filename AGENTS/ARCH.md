@@ -2,7 +2,7 @@
 
 ## Goal
 
-SchoolManager manages generic student grade records and uploaded files. The system intentionally does not distinguish school grades, standardized scores, contest scores, or language scores at the storage/API level. They are all grade records.
+SchoolManager manages generic student grade records, student information values, and uploaded files. The system intentionally does not distinguish school grades, standardized scores, contest scores, or language scores at the storage/API level. They are all grade records.
 
 ## Repository Layout
 
@@ -26,6 +26,9 @@ SchoolManager manages generic student grade records and uploaded files. The syst
 The domain layer contains data shapes and pure helpers:
 
 - `StudentSummary`
+- `StudentInfoDefinition`
+- `StudentInfoValue`
+- `StudentInfoField`
 - `Grade`
 - `StoredFile`
 - `StudentDetail`
@@ -40,8 +43,8 @@ The infra layer owns persistence and storage details:
 - `StoragePaths`: maps the configured data root into `school_index.db`, student folders, per-student `data.db`, and upload directories.
 - `SqliteConnection`: RAII wrapper around `sqlite3*` and prepared statements.
 - `LruSqlitePool`: bounded pool/cache for open SQLite connections.
-- `SchoolIndexRepository`: reads and writes `school_index.db`.
-- `StudentDataRepository`: reads and writes each student's `data.db` and file records.
+- `SchoolIndexRepository`: reads and writes `school_index.db`, including school-wide student information field definitions.
+- `StudentDataRepository`: reads and writes each student's `data.db`, including that student's student information values, grade records, and file records.
 
 SQLite connections enable WAL, foreign keys, `busy_timeout`, and normal synchronous mode when opened.
 
@@ -70,9 +73,9 @@ runtime-data/
         <stored_file_name>
 ```
 
-`school_index.db` contains only school-wide student metadata. It must not become a cross-student grade store.
+`school_index.db` contains school-wide student metadata and global student information field definitions. It must not become a cross-student grade or student information value store.
 
-Each student's `data.db` contains that student's grades and uploaded-file records. This keeps migration simple: moving a student means moving one folder.
+Each student's `data.db` contains that student's student information values, grades, and uploaded-file records. This keeps migration simple: moving a student means moving one folder.
 
 Uploaded files are stored in the same student folder under `uploads/`.
 
@@ -84,6 +87,20 @@ Student metadata edits and deletes use `school_index.db` only:
 Frontend student name blur -> PATCH student display_name -> school_index.db -> school WebSocket broadcast
 Frontend delete student -> DELETE student -> school_index.db delete -> remove student folder -> school WebSocket broadcast
 ```
+
+Global student information field definitions use `school_index.db` only:
+
+```text
+Frontend Global Settings -> POST/PATCH/DELETE student info definition -> school_index.db -> school WebSocket broadcast
+```
+
+Per-student information value edits use partial update semantics against that student's `data.db`:
+
+```text
+Frontend student info input blur -> PATCH student info value -> student data.db -> school_index touch -> student WebSocket broadcast
+```
+
+All students share the same global student information definitions. Student pages render those definitions directly as value inputs; they do not create, delete, or select field definitions.
 
 Grade edits use partial update semantics:
 
@@ -112,6 +129,8 @@ WS /api/ws/students?scope=school
 
 The backend keeps in-memory WebSocket rooms by student ID for per-student data and a school-level room for the student list. Student metadata mutations broadcast `student.created`, `student.updated`, and `student.deleted` to the school room. Per-student mutations broadcast messages such as `grade.created`, `grade.updated`, `grade.deleted`, and `file.created` to the student room.
 
+Global student information definition mutations broadcast `student_info_definition.created`, `student_info_definition.updated`, and `student_info_definition.deleted` to the school room. Per-student information value mutations broadcast `student_info.updated` to the relevant student room.
+
 The frontend compares incoming `field_id`/`changed_fields` against its local dirty-field map. If the same field is being edited locally, the incoming UI update is ignored silently.
 
 The frontend must deduplicate create events by resource ID because the client that made a mutation can receive both the HTTP mutation response and the WebSocket broadcast for the same resource.
@@ -124,7 +143,7 @@ Frontend state is split by responsibility:
 - Zustand owns local dirty-field tracking.
 - React component state owns short-lived input drafts and upload progress.
 
-Student names and grade cells autosave on `blur`. The student list is kept fresh through the school WebSocket room without requiring a page refresh. The UI exposes saved/saving and live/offline status.
+Student names, student information values, and grade cells autosave on `blur`. The Global Settings view manages school-wide student information definitions. The student list and global settings are kept fresh through the school WebSocket room without requiring a page refresh. The UI exposes saved/saving and live/offline status.
 
 ## API Contract
 
