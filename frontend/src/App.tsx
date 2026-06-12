@@ -44,6 +44,7 @@ export function App() {
   const studentSocketStatus = useStudentSocket(activeView === 'student' ? selectedStudentId : null);
   const socketStatus =
     schoolSocketStatus === 'connected' || studentSocketStatus === 'connected' ? 'connected' : 'reconnecting';
+  const studentSubtitle = detailQuery.data?.student.id ?? 'Student grade workspace';
 
   const openStudent = (studentId: string | null) => {
     setActiveView('student');
@@ -70,9 +71,7 @@ export function App() {
                 : detailQuery.data?.student.display_name ?? 'SchoolManager'}
             </h1>
             <p>
-              {activeView === 'global-settings'
-                ? 'School-wide configuration'
-                : detailQuery.data?.student.folder_path ?? 'Student grade workspace'}
+              {activeView === 'global-settings' ? 'School-wide configuration' : studentSubtitle}
             </p>
           </div>
           <div className="statusCluster">

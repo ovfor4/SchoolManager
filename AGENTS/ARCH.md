@@ -161,6 +161,8 @@ Frontend state is split by responsibility:
 
 Student names, student information values, and grade cells autosave on `blur`. The Global Settings view manages school-wide student information definitions. The student list and global settings are kept fresh through the school WebSocket room without requiring a page refresh. The UI exposes saved/saving and live/offline status.
 
+Student detail headers display the student's `display_name` and `id`. The `folder_path` field remains storage metadata for backend/file-system bookkeeping and must not be used as a user-facing student label.
+
 ## API Contract
 
 The OpenAPI contract is the source of truth for HTTP endpoints:
