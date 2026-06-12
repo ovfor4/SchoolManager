@@ -48,9 +48,13 @@ export function GradeTable({ studentId, grades }: GradeTableProps) {
     mutationKey: ['create-grade', studentId],
     mutationFn: () => createGrade(studentId),
     onSuccess: (grade) => {
-      queryClient.setQueryData<StudentDetail>(['student', studentId], (old) =>
-        old ? { ...old, grades: [grade, ...old.grades] } : old,
-      );
+      queryClient.setQueryData<StudentDetail>(['student', studentId], (old) => {
+        if (!old) {
+          return old;
+        }
+        const existingGrades = old.grades.filter((item) => item.id !== grade.id);
+        return { ...old, grades: [grade, ...existingGrades] };
+      });
     },
   });
 
@@ -142,17 +146,26 @@ export function GradeTable({ studentId, grades }: GradeTableProps) {
                 const draft = drafts[grade.id] ?? grade;
                 return (
                   <tr key={grade.id}>
-                    {gradeFields.map((field) => (
-                      <td key={field}>
-                        <input
-                          className={dirtyFields[`grade:${grade.id}:${field}`] ? 'dirtyInput' : ''}
-                          value={draft[field]}
-                          onChange={(event) => updateDraft(grade.id, field, event.target.value)}
-                          onBlur={() => commitField(grade.id, field)}
-                          aria-label={`${field} for ${grade.title || grade.id}`}
-                        />
-                      </td>
-                    ))}
+                    {gradeFields.map((field) => {
+                      const inputClassName = [
+                        dirtyFields[`grade:${grade.id}:${field}`] ? 'dirtyInput' : '',
+                        field === 'occurred_on' ? 'dateInput' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ');
+                      return (
+                        <td key={field}>
+                          <input
+                            type={field === 'occurred_on' ? 'date' : 'text'}
+                            className={inputClassName}
+                            value={draft[field]}
+                            onChange={(event) => updateDraft(grade.id, field, event.target.value)}
+                            onBlur={() => commitField(grade.id, field)}
+                            aria-label={`${field} for ${grade.title || grade.id}`}
+                          />
+                        </td>
+                      );
+                    })}
                     <td className="rowAction">
                       <button
                         className="iconButton danger"

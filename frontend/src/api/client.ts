@@ -1,4 +1,4 @@
-import type { Grade, GradePatch, StoredFile, Student, StudentDetail } from './types';
+import type { Grade, GradePatch, StoredFile, Student, StudentDetail, StudentPatch } from './types';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -42,6 +42,20 @@ export async function createStudent(displayName: string): Promise<Student> {
     body: JSON.stringify({ display_name: displayName }),
   });
   return data.student;
+}
+
+export async function patchStudent(studentId: string, patch: StudentPatch): Promise<Student> {
+  const data = await request<{ student: Student }>(`/api/students/${studentId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+  return data.student;
+}
+
+export async function deleteStudent(studentId: string): Promise<void> {
+  await request<{ deleted: boolean }>(`/api/students/${studentId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function getStudent(studentId: string): Promise<StudentDetail> {

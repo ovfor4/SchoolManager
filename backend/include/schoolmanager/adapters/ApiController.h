@@ -24,6 +24,8 @@ class ApiController : public drogon::HttpController<ApiController, false> {
     ADD_METHOD_TO(ApiController::listStudents, "/api/students", drogon::Get);
     ADD_METHOD_TO(ApiController::createStudent, "/api/students", drogon::Post);
     ADD_METHOD_TO(ApiController::getStudent, "/api/students/{1}", drogon::Get);
+    ADD_METHOD_TO(ApiController::patchStudent, "/api/students/{1}", drogon::Patch);
+    ADD_METHOD_TO(ApiController::deleteStudent, "/api/students/{1}", drogon::Delete);
     ADD_METHOD_TO(ApiController::listGrades, "/api/students/{1}/grades", drogon::Get);
     ADD_METHOD_TO(ApiController::createGrade, "/api/students/{1}/grades", drogon::Post);
     ADD_METHOD_TO(ApiController::patchGrade, "/api/students/{1}/grades/{2}", drogon::Patch);
@@ -46,6 +48,12 @@ class ApiController : public drogon::HttpController<ApiController, false> {
     void getStudent(const drogon::HttpRequestPtr& request,
                     std::function<void(const drogon::HttpResponsePtr&)>&& callback,
                     std::string studentId);
+    void patchStudent(const drogon::HttpRequestPtr& request,
+                      std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                      std::string studentId);
+    void deleteStudent(const drogon::HttpRequestPtr& request,
+                       std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                       std::string studentId);
     void listGrades(const drogon::HttpRequestPtr& request,
                     std::function<void(const drogon::HttpResponsePtr&)>&& callback,
                     std::string studentId);

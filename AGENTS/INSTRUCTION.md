@@ -85,6 +85,12 @@ If a value appears in more than one file, it must not be duplicated manually.
 - Do not overwrite a locally dirty field with incoming WebSocket data.
 - Keep UI controls stable in size so editing/saving states do not shift layout.
 
+## Verification
+
+- Unless the user explicitly asks for tests, default to compile/build verification only.
+- Do not run extra manual, browser, API, or smoke tests just because they are available.
+- If a change is uncertain or unusually risky and needs more than compilation, state why before running the additional check.
+
 ## Documentation
 
 - README is for user-facing setup and running instructions.

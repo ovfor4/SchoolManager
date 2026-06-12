@@ -1,8 +1,11 @@
 #include "schoolmanager/adapters/StudentWebSocketController.h"
 
+#include "schoolmanager/config/Constants.h"
 #include "schoolmanager/domain/Models.h"
 
 #include <drogon/drogon.h>
+
+#include <string>
 
 namespace schoolmanager::adapters {
 
@@ -39,7 +42,13 @@ void StudentWebSocketController::handleNewConnection(
     const drogon::HttpRequestPtr& request,
     const drogon::WebSocketConnectionPtr& connection)
 {
-    const auto studentId = request->getParameter("student_id");
+    const auto scope = request->getParameter(std::string(config::webSocketScopeParameter));
+    if (scope == std::string(config::webSocketSchoolScope)) {
+        broadcast_hub_->join(std::string(config::schoolWebSocketRoomId), connection);
+        return;
+    }
+
+    const auto studentId = request->getParameter(std::string(config::webSocketStudentIdParameter));
     if (!domain::isSafeId(studentId)) {
         connection->shutdown(drogon::CloseCode::kViolation, "invalid student id");
         return;

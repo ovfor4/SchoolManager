@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useIsMutating, useQuery } from '@tanstack/react-query';
 import { RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { getStudent, listStudents } from './api/client';
+import { useSchoolSocket } from './api/useSchoolSocket';
 import { useStudentSocket } from './api/useStudentSocket';
 import { FilePanel } from './components/FilePanel';
 import { GradeTable } from './components/GradeTable';
@@ -17,7 +18,15 @@ export function App() {
   });
 
   useEffect(() => {
-    if (!selectedStudentId && studentsQuery.data?.length) {
+    if (!studentsQuery.data) {
+      return;
+    }
+    if (studentsQuery.data.length === 0) {
+      setSelectedStudentId(null);
+      return;
+    }
+    const selectedStudentExists = studentsQuery.data.some((student) => student.id === selectedStudentId);
+    if (!selectedStudentId || !selectedStudentExists) {
       setSelectedStudentId(studentsQuery.data[0].id);
     }
   }, [selectedStudentId, studentsQuery.data]);
@@ -28,7 +37,10 @@ export function App() {
     enabled: Boolean(selectedStudentId),
   });
 
-  const socketStatus = useStudentSocket(selectedStudentId);
+  const schoolSocketStatus = useSchoolSocket();
+  const studentSocketStatus = useStudentSocket(selectedStudentId);
+  const socketStatus =
+    schoolSocketStatus === 'connected' || studentSocketStatus === 'connected' ? 'connected' : 'reconnecting';
 
   return (
     <main className="appShell">

@@ -1,6 +1,7 @@
 #include "schoolmanager/infra/SchoolIndexRepository.h"
 
 #include <stdexcept>
+#include <system_error>
 
 namespace schoolmanager::infra {
 
@@ -107,6 +108,62 @@ std::optional<domain::StudentSummary> SchoolIndexRepository::getStudent(std::str
         return std::nullopt;
     }
     return readStudent(stmt);
+}
+
+std::optional<domain::StudentSummary> SchoolIndexRepository::updateStudentDisplayName(
+    std::string_view studentId,
+    std::string displayName)
+{
+    if (!domain::isSafeId(studentId)) {
+        return std::nullopt;
+    }
+    if (displayName.empty()) {
+        displayName = "Unnamed student";
+    }
+
+    auto db = pool_->acquire(paths_.schoolIndexDb());
+    {
+        auto guard = db->lock();
+        auto stmt = db->prepare(
+            "UPDATE students SET display_name = ?, updated_at = ? WHERE id = ?;");
+        stmt.bindText(1, displayName);
+        stmt.bindInt64(2, domain::unixTimeMillis());
+        stmt.bindText(3, studentId);
+        stmt.executeDone();
+
+        if (sqlite3_changes(db->raw()) == 0) {
+            return std::nullopt;
+        }
+    }
+
+    return getStudent(studentId);
+}
+
+bool SchoolIndexRepository::deleteStudent(std::string_view studentId)
+{
+    if (!domain::isSafeId(studentId)) {
+        return false;
+    }
+
+    const auto studentDir = paths_.studentDir(studentId);
+    auto db = pool_->acquire(paths_.schoolIndexDb());
+    {
+        auto guard = db->lock();
+        auto stmt = db->prepare("DELETE FROM students WHERE id = ?;");
+        stmt.bindText(1, studentId);
+        stmt.executeDone();
+
+        if (sqlite3_changes(db->raw()) == 0) {
+            return false;
+        }
+    }
+
+    std::error_code error;
+    std::filesystem::remove_all(studentDir, error);
+    if (error) {
+        throw std::runtime_error("failed to remove student folder: " + error.message());
+    }
+    return true;
 }
 
 void SchoolIndexRepository::touchStudent(std::string_view studentId, std::int64_t updatedAt)

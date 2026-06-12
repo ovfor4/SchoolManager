@@ -1,6 +1,7 @@
 #include "schoolmanager/adapters/ApiController.h"
 
 #include "schoolmanager/adapters/JsonHelpers.h"
+#include "schoolmanager/config/Constants.h"
 #include "schoolmanager/infra/StoragePaths.h"
 
 #include <drogon/MultiPart.h>
@@ -79,6 +80,31 @@ void emitGradeMessage(const std::shared_ptr<BroadcastHub>& hub,
     hub->broadcast(std::string(studentId), message);
 }
 
+void emitStudentMessage(const std::shared_ptr<BroadcastHub>& hub,
+                        const std::string& type,
+                        const domain::StudentSummary& student,
+                        const Json::Value& changedFields = Json::Value(Json::arrayValue))
+{
+    Json::Value message(Json::objectValue);
+    message["type"] = type;
+    message["resource"] = "student";
+    message["id"] = student.id;
+    message["field_id"] = "student:" + student.id;
+    message["student"] = toJson(student);
+    message["changed_fields"] = changedFields;
+    hub->broadcast(std::string(config::schoolWebSocketRoomId), message);
+}
+
+void emitStudentDeletedMessage(const std::shared_ptr<BroadcastHub>& hub, std::string_view studentId)
+{
+    Json::Value message(Json::objectValue);
+    message["type"] = "student.deleted";
+    message["resource"] = "student";
+    message["id"] = std::string(studentId);
+    message["field_id"] = "student:" + std::string(studentId);
+    hub->broadcast(std::string(config::schoolWebSocketRoomId), message);
+}
+
 }  // namespace
 
 ApiController::ApiController(std::shared_ptr<infra::SchoolIndexRepository> schoolIndex,
@@ -141,6 +167,8 @@ void ApiController::createStudent(const drogon::HttpRequestPtr& request, Callbac
         Json::Value body(Json::objectValue);
         body["student"] = toJson(student);
         callback(jsonResponse(std::move(body), drogon::k201Created));
+
+        emitStudentMessage(broadcast_hub_, "student.created", student);
     } catch (const std::exception& e) {
         callback(errorResponse(e.what(), drogon::k400BadRequest));
     }
@@ -160,6 +188,56 @@ void ApiController::getStudent(const drogon::HttpRequestPtr&, Callback&& callbac
         body["grades"] = toJsonArray(student_data_->listGrades(studentId));
         body["files"] = toJsonArray(student_data_->listFiles(studentId));
         callback(jsonResponse(std::move(body)));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k500InternalServerError));
+    }
+}
+
+void ApiController::patchStudent(const drogon::HttpRequestPtr& request,
+                                 Callback&& callback,
+                                 std::string studentId)
+{
+    try {
+        const auto json = request->getJsonObject();
+        if (!json || !json->isObject() || !json->isMember("display_name")) {
+            callback(errorResponse("display_name is required", drogon::k400BadRequest));
+            return;
+        }
+
+        const auto updated =
+            school_index_->updateStudentDisplayName(studentId, scalarToString((*json)["display_name"]));
+        if (!updated) {
+            callback(errorResponse("student not found", drogon::k404NotFound));
+            return;
+        }
+
+        Json::Value body(Json::objectValue);
+        body["student"] = toJson(*updated);
+        callback(jsonResponse(std::move(body)));
+
+        Json::Value changedFields(Json::arrayValue);
+        changedFields.append("display_name");
+        emitStudentMessage(broadcast_hub_, "student.updated", *updated, changedFields);
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
+    }
+}
+
+void ApiController::deleteStudent(const drogon::HttpRequestPtr&,
+                                  Callback&& callback,
+                                  std::string studentId)
+{
+    try {
+        if (!school_index_->deleteStudent(studentId)) {
+            callback(errorResponse("student not found", drogon::k404NotFound));
+            return;
+        }
+
+        Json::Value body(Json::objectValue);
+        body["deleted"] = true;
+        callback(jsonResponse(std::move(body)));
+
+        emitStudentDeletedMessage(broadcast_hub_, studentId);
     } catch (const std::exception& e) {
         callback(errorResponse(e.what(), drogon::k500InternalServerError));
     }

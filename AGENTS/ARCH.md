@@ -78,6 +78,13 @@ Uploaded files are stored in the same student folder under `uploads/`.
 
 ## Write Flow
 
+Student metadata edits and deletes use `school_index.db` only:
+
+```text
+Frontend student name blur -> PATCH student display_name -> school_index.db -> school WebSocket broadcast
+Frontend delete student -> DELETE student -> school_index.db delete -> remove student folder -> school WebSocket broadcast
+```
+
 Grade edits use partial update semantics:
 
 ```text
@@ -100,11 +107,14 @@ Clients connect to:
 
 ```text
 WS /api/ws/students?student_id=<student_id>
+WS /api/ws/students?scope=school
 ```
 
-The backend keeps in-memory WebSocket rooms by student ID. Mutations broadcast messages such as `grade.created`, `grade.updated`, `grade.deleted`, and `file.created`.
+The backend keeps in-memory WebSocket rooms by student ID for per-student data and a school-level room for the student list. Student metadata mutations broadcast `student.created`, `student.updated`, and `student.deleted` to the school room. Per-student mutations broadcast messages such as `grade.created`, `grade.updated`, `grade.deleted`, and `file.created` to the student room.
 
 The frontend compares incoming `field_id`/`changed_fields` against its local dirty-field map. If the same field is being edited locally, the incoming UI update is ignored silently.
+
+The frontend must deduplicate create events by resource ID because the client that made a mutation can receive both the HTTP mutation response and the WebSocket broadcast for the same resource.
 
 ## Frontend State
 
@@ -114,7 +124,7 @@ Frontend state is split by responsibility:
 - Zustand owns local dirty-field tracking.
 - React component state owns short-lived input drafts and upload progress.
 
-Grade cells autosave on `blur`. The UI exposes saved/saving and live/offline status.
+Student names and grade cells autosave on `blur`. The student list is kept fresh through the school WebSocket room without requiring a page refresh. The UI exposes saved/saving and live/offline status.
 
 ## API Contract
 

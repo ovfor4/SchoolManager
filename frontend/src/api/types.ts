@@ -33,9 +33,25 @@ export type StudentDetail = {
   files: StoredFile[];
 };
 
+export type StudentPatch = Partial<Pick<Student, 'display_name'>>;
+
 export type GradePatch = Partial<Pick<Grade, 'title' | 'score' | 'max_score' | 'occurred_on' | 'notes'>>;
 
 export type WsMessage =
+  | {
+      type: 'student.created' | 'student.updated';
+      resource: 'student';
+      id: string;
+      field_id: string;
+      student: Student;
+      changed_fields?: Array<keyof StudentPatch>;
+    }
+  | {
+      type: 'student.deleted';
+      resource: 'student';
+      id: string;
+      field_id: string;
+    }
   | {
       type: 'grade.created' | 'grade.updated';
       student_id: string;

@@ -18,6 +18,9 @@ class SchoolIndexRepository {
     domain::StudentSummary createStudent(std::string displayName);
     std::vector<domain::StudentSummary> listStudents();
     std::optional<domain::StudentSummary> getStudent(std::string_view studentId);
+    std::optional<domain::StudentSummary> updateStudentDisplayName(std::string_view studentId,
+                                                                   std::string displayName);
+    bool deleteStudent(std::string_view studentId);
     void touchStudent(std::string_view studentId, std::int64_t updatedAt);
 
   private:

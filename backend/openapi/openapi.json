@@ -84,6 +84,48 @@
             "description": "Student not found"
           }
         }
+      },
+      "patch": {
+        "summary": "Patch student metadata",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Student patched"
+          },
+          "404": {
+            "description": "Student not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a student and that student's folder",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Student deleted"
+          },
+          "404": {
+            "description": "Student not found"
+          }
+        }
       }
     },
     "/api/students/{studentId}/grades": {
@@ -322,7 +364,8 @@
             "type": "string"
           },
           "occurred_on": {
-            "type": "string"
+            "type": "string",
+            "format": "date"
           },
           "notes": {
             "type": "string"
@@ -332,6 +375,18 @@
             "format": "int64"
           }
         }
+      },
+      "StudentInput": {
+        "type": "object",
+        "required": [
+          "display_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "GradeInput": {
         "type": "object",
@@ -346,7 +401,8 @@
             "type": "string"
           },
           "occurred_on": {
-            "type": "string"
+            "type": "string",
+            "format": "date"
           },
           "notes": {
             "type": "string"
