@@ -16,6 +16,7 @@ SchoolManager manages generic student grade records, student information values,
 - `backend/openapi/openapi.json`: HTTP API contract.
 - `frontend/`: React + Vite frontend.
 - `frontend/src/api`: HTTP/WebSocket client code and API types.
+- `frontend/src/config`: frontend runtime and deployment constants.
 - `frontend/src/store`: local client state such as dirty-field tracking.
 - `frontend/src/components`: UI components.
 
@@ -134,6 +135,21 @@ Global student information definition mutations broadcast `student_info_definiti
 The frontend compares incoming `field_id`/`changed_fields` against its local dirty-field map. If the same field is being edited locally, the incoming UI update is ignored silently.
 
 The frontend must deduplicate create events by resource ID because the client that made a mutation can receive both the HTTP mutation response and the WebSocket broadcast for the same resource.
+
+## Deployment Model
+
+Remote deployments expose the Vite frontend port only. The frontend defaults to listening on `0.0.0.0:5173`, while the backend defaults to listening on `127.0.0.1:8080`.
+
+Browser HTTP and WebSocket traffic must use same-origin `/api` paths from the frontend origin. The browser must not assume the backend port is reachable. Vite proxies all `/api` HTTP and WebSocket traffic to the backend listener.
+
+Stable deployment defaults are centralized in:
+
+```text
+backend/include/schoolmanager/config/Constants.h
+frontend/src/config/constants.ts
+```
+
+Deployment-specific overrides use environment variables instead of source edits. The backend uses `SM_HOST` and `SM_PORT`; the frontend uses `SM_FRONTEND_HOST`, `SM_FRONTEND_PORT`, `SM_API_PROXY_HOST`, and `SM_API_PROXY_PORT`.
 
 ## Frontend State
 

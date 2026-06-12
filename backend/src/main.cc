@@ -1,6 +1,7 @@
 #include "schoolmanager/adapters/ApiController.h"
 #include "schoolmanager/adapters/BroadcastHub.h"
 #include "schoolmanager/adapters/StudentWebSocketController.h"
+#include "schoolmanager/config/Constants.h"
 #include "schoolmanager/infra/LruSqlitePool.h"
 #include "schoolmanager/infra/SchoolIndexRepository.h"
 #include "schoolmanager/infra/StoragePaths.h"
@@ -12,24 +13,29 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace {
 
-std::string envOrDefault(const char* key, std::string fallback)
+std::string envOrDefault(std::string_view key, std::string_view fallback)
 {
-    if (const char* value = std::getenv(key); value != nullptr && std::string(value).size() > 0) {
+    const std::string keyString(key);
+    if (const char* value = std::getenv(keyString.c_str()); value != nullptr && *value != '\0') {
         return value;
     }
-    return fallback;
+    return std::string(fallback);
 }
 
 std::uint16_t portFromEnv()
 {
-    const auto raw = envOrDefault("SM_PORT", "8080");
+    const auto raw =
+        envOrDefault(schoolmanager::config::envPort,
+                     std::to_string(schoolmanager::config::defaultBackendPort));
     const auto port = std::stoi(raw);
     if (port <= 0 || port > 65535) {
-        throw std::runtime_error("SM_PORT out of range");
+        throw std::runtime_error(std::string(schoolmanager::config::envPort) + " out of range");
     }
     return static_cast<std::uint16_t>(port);
 }
@@ -46,12 +52,19 @@ void addCorsHeaders(const drogon::HttpResponsePtr& response)
 int main()
 {
     try {
-        const auto dataRoot = envOrDefault("SM_DATA_ROOT", "./runtime-data");
-        const auto host = envOrDefault("SM_HOST", "0.0.0.0");
+        const auto dataRoot =
+            envOrDefault(schoolmanager::config::envDataRoot,
+                         schoolmanager::config::defaultDataRoot);
+        const auto host =
+            envOrDefault(schoolmanager::config::envHost,
+                         schoolmanager::config::defaultBackendHost);
         const auto port = portFromEnv();
-        const auto poolSize = static_cast<std::size_t>(std::stoul(envOrDefault("SM_DB_POOL_SIZE", "64")));
-        const auto openApiPath =
-            std::filesystem::path(envOrDefault("SM_OPENAPI_PATH", "backend/openapi/openapi.json"));
+        const auto poolSize = static_cast<std::size_t>(
+            std::stoul(envOrDefault(schoolmanager::config::envDbPoolSize,
+                                    std::to_string(schoolmanager::config::defaultDbPoolSize))));
+        const auto openApiPath = std::filesystem::path(
+            envOrDefault(schoolmanager::config::envOpenApiPath,
+                         schoolmanager::config::defaultOpenApiPath));
 
         schoolmanager::infra::StoragePaths paths(dataRoot);
         auto pool = std::make_shared<schoolmanager::infra::LruSqlitePool>(poolSize);
@@ -91,7 +104,10 @@ int main()
         std::cout << "SchoolManager backend listening on http://" << host << ":" << port
                   << " with data root " << std::filesystem::absolute(dataRoot) << '\n';
 
-        drogon::app().addListener(host, port).setThreadNum(4).run();
+        drogon::app()
+            .addListener(host, port)
+            .setThreadNum(schoolmanager::config::defaultHttpThreadCount)
+            .run();
     } catch (const std::exception& e) {
         std::cerr << "fatal: " << e.what() << '\n';
         return 1;

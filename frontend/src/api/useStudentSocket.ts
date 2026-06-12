@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { WS_BASE_URL } from './client';
+import { webSocketUrl } from './client';
+import { apiPaths } from './paths';
 import type { StudentDetail, WsMessage } from './types';
 import { useDirtyStore } from '../store/dirtyStore';
 
@@ -21,7 +22,7 @@ export function useStudentSocket(studentId: string | null) {
 
     const connect = () => {
       setStatus((current) => (current === 'idle' ? 'reconnecting' : current));
-      socket = new WebSocket(`${WS_BASE_URL}/api/ws/students?student_id=${encodeURIComponent(studentId)}`);
+      socket = new WebSocket(webSocketUrl(apiPaths.studentSocket(studentId)));
 
       socket.onopen = () => setStatus('connected');
       socket.onclose = () => {

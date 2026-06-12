@@ -10,15 +10,47 @@ import type {
   StudentInfoValuePatch,
   StudentPatch,
 } from './types';
+import {
+  apiBaseUrlEnv,
+  httpsProtocol,
+  secureWebSocketProtocol,
+  webSocketBaseUrlEnv,
+  webSocketProtocol,
+} from '../config/constants';
+import { apiPaths } from './paths';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
+const trimTrailingSlashes = (value: string) => value.replace(/\/+$/, '');
+const configuredEnv = (key: string) => {
+  const value = import.meta.env[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+};
 
-export const WS_BASE_URL =
-  import.meta.env.VITE_WS_BASE_URL ??
-  API_BASE_URL.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+export const API_BASE_URL = trimTrailingSlashes(configuredEnv(apiBaseUrlEnv) ?? '');
+
+const webSocketProtocolFor = (protocol: string) =>
+  protocol === httpsProtocol ? secureWebSocketProtocol : webSocketProtocol;
+
+const defaultWebSocketBaseUrl = () => `${webSocketProtocolFor(window.location.protocol)}//${window.location.host}`;
+
+const webSocketBaseUrlFromApiBaseUrl = (apiBaseUrl: string) => {
+  if (!apiBaseUrl) {
+    return undefined;
+  }
+
+  const url = new URL(apiBaseUrl, window.location.origin);
+  url.protocol = webSocketProtocolFor(url.protocol);
+  return trimTrailingSlashes(url.toString());
+};
+
+export const WS_BASE_URL = trimTrailingSlashes(
+  configuredEnv(webSocketBaseUrlEnv) ?? webSocketBaseUrlFromApiBaseUrl(API_BASE_URL) ?? defaultWebSocketBaseUrl(),
+);
+
+export const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
+export const webSocketUrl = (path: string) => `${WS_BASE_URL}${path}`;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...init,
     headers: {
       ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -43,12 +75,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function listStudents(): Promise<Student[]> {
-  const data = await request<{ students: Student[] }>('/api/students');
+  const data = await request<{ students: Student[] }>(apiPaths.students());
   return data.students;
 }
 
 export async function createStudent(displayName: string): Promise<Student> {
-  const data = await request<{ student: Student }>('/api/students', {
+  const data = await request<{ student: Student }>(apiPaths.students(), {
     method: 'POST',
     body: JSON.stringify({ display_name: displayName }),
   });
@@ -56,7 +88,7 @@ export async function createStudent(displayName: string): Promise<Student> {
 }
 
 export async function patchStudent(studentId: string, patch: StudentPatch): Promise<Student> {
-  const data = await request<{ student: Student }>(`/api/students/${studentId}`, {
+  const data = await request<{ student: Student }>(apiPaths.student(studentId), {
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
@@ -64,27 +96,32 @@ export async function patchStudent(studentId: string, patch: StudentPatch): Prom
 }
 
 export async function deleteStudent(studentId: string): Promise<void> {
-  await request<{ deleted: boolean }>(`/api/students/${studentId}`, {
+  await request<{ deleted: boolean }>(apiPaths.student(studentId), {
     method: 'DELETE',
   });
 }
 
 export async function getStudent(studentId: string): Promise<StudentDetail> {
-  return request<StudentDetail>(`/api/students/${studentId}`);
+  return request<StudentDetail>(apiPaths.student(studentId));
 }
 
 export async function listStudentInfoDefinitions(): Promise<StudentInfoDefinition[]> {
-  const data = await request<{ info_field_definitions: StudentInfoDefinition[] }>('/api/student-info-fields');
+  const data = await request<{ info_field_definitions: StudentInfoDefinition[] }>(
+    apiPaths.studentInfoDefinitions(),
+  );
   return data.info_field_definitions;
 }
 
 export async function createStudentInfoDefinition(
   payload: Pick<StudentInfoDefinition, 'name' | 'display_name' | 'value_type'>,
 ): Promise<StudentInfoDefinition> {
-  const data = await request<{ info_field_definition: StudentInfoDefinition }>('/api/student-info-fields', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  const data = await request<{ info_field_definition: StudentInfoDefinition }>(
+    apiPaths.studentInfoDefinitions(),
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
   return data.info_field_definition;
 }
 
@@ -93,7 +130,7 @@ export async function patchStudentInfoDefinition(
   patch: StudentInfoDefinitionPatch,
 ): Promise<StudentInfoDefinition> {
   const data = await request<{ info_field_definition: StudentInfoDefinition }>(
-    `/api/student-info-fields/${fieldId}`,
+    apiPaths.studentInfoDefinition(fieldId),
     {
       method: 'PATCH',
       body: JSON.stringify(patch),
@@ -103,7 +140,7 @@ export async function patchStudentInfoDefinition(
 }
 
 export async function deleteStudentInfoDefinition(fieldId: string): Promise<void> {
-  await request<{ deleted: boolean }>(`/api/student-info-fields/${fieldId}`, {
+  await request<{ deleted: boolean }>(apiPaths.studentInfoDefinition(fieldId), {
     method: 'DELETE',
   });
 }
@@ -114,7 +151,7 @@ export async function patchStudentInfoValue(
   patch: StudentInfoValuePatch,
 ): Promise<StudentInfoField> {
   const data = await request<{ info_field: StudentInfoField }>(
-    `/api/students/${studentId}/info-fields/${fieldId}`,
+    apiPaths.studentInfoValue(studentId, fieldId),
     {
       method: 'PATCH',
       body: JSON.stringify(patch),
@@ -124,7 +161,7 @@ export async function patchStudentInfoValue(
 }
 
 export async function createGrade(studentId: string): Promise<Grade> {
-  const data = await request<{ grade: Grade }>(`/api/students/${studentId}/grades`, {
+  const data = await request<{ grade: Grade }>(apiPaths.grades(studentId), {
     method: 'POST',
     body: JSON.stringify({ title: 'New grade', score: '' }),
   });
@@ -132,7 +169,7 @@ export async function createGrade(studentId: string): Promise<Grade> {
 }
 
 export async function patchGrade(studentId: string, gradeId: string, patch: GradePatch): Promise<Grade> {
-  const data = await request<{ grade: Grade }>(`/api/students/${studentId}/grades/${gradeId}`, {
+  const data = await request<{ grade: Grade }>(apiPaths.grade(studentId, gradeId), {
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
@@ -140,7 +177,7 @@ export async function patchGrade(studentId: string, gradeId: string, patch: Grad
 }
 
 export async function deleteGrade(studentId: string, gradeId: string): Promise<void> {
-  await request<{ deleted: boolean }>(`/api/students/${studentId}/grades/${gradeId}`, {
+  await request<{ deleted: boolean }>(apiPaths.grade(studentId, gradeId), {
     method: 'DELETE',
   });
 }
@@ -155,7 +192,7 @@ export function uploadFile(
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${API_BASE_URL}/api/students/${studentId}/files`);
+    xhr.open('POST', apiUrl(apiPaths.files(studentId)));
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         onProgress(Math.round((event.loaded / event.total) * 100));
@@ -180,5 +217,5 @@ export function uploadFile(
 }
 
 export function downloadUrl(studentId: string, fileId: string): string {
-  return `${API_BASE_URL}/api/students/${studentId}/files/${fileId}/download`;
+  return apiUrl(apiPaths.fileDownload(studentId, fileId));
 }
