@@ -7,17 +7,17 @@ endif()
 find_package(Drogon REQUIRED)
 
 add_executable(schoolmanager_backend
-    src/main.cpp
-    src/domain/Models.cpp
-    src/infra/LruSqlitePool.cpp
-    src/infra/SchoolIndexRepository.cpp
-    src/infra/SqliteConnection.cpp
-    src/infra/StoragePaths.cpp
-    src/infra/StudentDataRepository.cpp
-    src/adapters/ApiController.cpp
-    src/adapters/BroadcastHub.cpp
-    src/adapters/JsonHelpers.cpp
-    src/adapters/StudentWebSocketController.cpp
+    src/main.cc
+    src/domain/Models.cc
+    src/infra/LruSqlitePool.cc
+    src/infra/SchoolIndexRepository.cc
+    src/infra/SqliteConnection.cc
+    src/infra/StoragePaths.cc
+    src/infra/StudentDataRepository.cc
+    src/adapters/ApiController.cc
+    src/adapters/BroadcastHub.cc
+    src/adapters/JsonHelpers.cc
+    src/adapters/StudentWebSocketController.cc
 )
 
 target_include_directories(schoolmanager_backend
