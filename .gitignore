@@ -67,3 +67,11 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+frontend/dist/
+frontend/node_modules/
+frontend/.vite/
+*.tsbuildinfo
+.local/
+runtime-data/
+uploads/

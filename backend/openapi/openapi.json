@@ -1,0 +1,395 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SchoolManager API",
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080"
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Backend health check",
+        "responses": {
+          "200": {
+            "description": "Service is healthy"
+          }
+        }
+      }
+    },
+    "/api/students": {
+      "get": {
+        "summary": "List students from school_index.db only",
+        "responses": {
+          "200": {
+            "description": "Student list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "students": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Student"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a student folder and per-student data.db",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "display_name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Student created"
+          }
+        }
+      }
+    },
+    "/api/students/{studentId}": {
+      "get": {
+        "summary": "Get one student with grades and uploaded files",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Student detail"
+          },
+          "404": {
+            "description": "Student not found"
+          }
+        }
+      }
+    },
+    "/api/students/{studentId}/grades": {
+      "get": {
+        "summary": "List generic grade records for one student",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Grade list"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a generic grade record",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GradeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Grade created"
+          }
+        }
+      }
+    },
+    "/api/students/{studentId}/grades/{gradeId}": {
+      "patch": {
+        "summary": "Patch only changed grade fields",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          },
+          {
+            "$ref": "#/components/parameters/GradeId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GradeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Grade patched and broadcast over websocket"
+          },
+          "404": {
+            "description": "Student or grade not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a grade record",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          },
+          {
+            "$ref": "#/components/parameters/GradeId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Grade deleted"
+          }
+        }
+      }
+    },
+    "/api/students/{studentId}/files": {
+      "get": {
+        "summary": "List uploaded files",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File list"
+          }
+        }
+      },
+      "post": {
+        "summary": "Upload a file with tmp, DB pending, atomic rename, DB active flow",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "File uploaded"
+          }
+        }
+      }
+    },
+    "/api/students/{studentId}/files/{fileId}/download": {
+      "get": {
+        "summary": "Download an active uploaded file",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StudentId"
+          },
+          {
+            "$ref": "#/components/parameters/FileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File bytes"
+          },
+          "404": {
+            "description": "File not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "StudentId": {
+        "name": "studentId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "GradeId": {
+        "name": "gradeId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "FileId": {
+        "name": "fileId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "Student": {
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "folder_path",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "folder_path": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Grade": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "score",
+          "max_score",
+          "occurred_on",
+          "notes",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "score": {
+            "type": "string"
+          },
+          "max_score": {
+            "type": "string"
+          },
+          "occurred_on": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "GradeInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "score": {
+            "type": "string"
+          },
+          "max_score": {
+            "type": "string"
+          },
+          "occurred_on": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StoredFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "original_name": {
+            "type": "string"
+          },
+          "stored_name": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active"
+            ]
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    }
+  }
+}
