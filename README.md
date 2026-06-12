@@ -27,7 +27,11 @@ sudo apt-get install -y \
   libmariadb-dev \
   libhiredis-dev \
   libyaml-cpp-dev \
-  g++-14
+  g++-14\
+  build-essential\
+  uuid-dev\
+  libpq-dev\
+  libbrotli-dev
 
 npm --prefix frontend ci
 ```

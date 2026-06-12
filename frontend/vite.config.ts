@@ -54,11 +54,13 @@ export default defineConfig({
     port: frontendPort,
     strictPort: true,
     proxy: apiProxy,
+    allowedHosts: true,
   },
   preview: {
     host: frontendHost,
     port: frontendPort,
     strictPort: true,
     proxy: apiProxy,
+    allowedHosts: true,
   },
 });
