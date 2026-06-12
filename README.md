@@ -4,10 +4,21 @@ SchoolManager is a school grade-management app with a C++23 backend, SQLite stor
 
 ## Install Dependencies
 
-Backend packages on Ubuntu 24.04:
+Frontend npm dependencies are managed in `frontend/package.json` and locked by
+`frontend/package-lock.json`.
+
+Install backend system packages, Node.js/npm, and frontend npm packages on
+Ubuntu 24.04:
 
 ```bash
-sudo apt-get update
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.5/install.sh | bash
+\. "$HOME/.nvm/nvm.sh"
+nvm install 24
+```
+
+
+```bash
+sudo apt-get update && \
 sudo apt-get install -y \
   cmake \
   libdrogon-dev \
@@ -15,14 +26,10 @@ sudo apt-get install -y \
   libjsoncpp-dev \
   libmariadb-dev \
   libhiredis-dev \
-  libyaml-cpp-dev
-```
+  libyaml-cpp-dev \
+  g++-14
 
-Frontend packages:
-
-```bash
-cd frontend
-npm install
+npm --prefix frontend ci
 ```
 
 ## Build
