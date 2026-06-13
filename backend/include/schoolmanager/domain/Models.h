@@ -49,22 +49,44 @@ struct StudentInfoField {
     std::int64_t updated_at{};
 };
 
-struct StoredFile {
+struct FileContext {
+    std::string type;
     std::string id;
-    std::string original_name;
-    std::string stored_name;
+};
+
+struct FileEntry {
+    std::string id;
+    std::string context_type;
+    std::string context_id;
+    std::optional<std::string> parent_id;
+    std::string kind;
+    std::string name;
+    std::string storage_name;
     std::string mime_type;
-    std::string status;
     std::uint64_t size_bytes{};
+    std::string status;
+    std::optional<std::string> trash_entry_id;
     std::int64_t created_at{};
     std::int64_t updated_at{};
+    std::optional<std::int64_t> trashed_at;
+};
+
+struct TrashEntry {
+    std::string id;
+    std::string context_type;
+    std::string context_id;
+    std::string root_entry_id;
+    std::optional<std::string> original_parent_id;
+    std::string root_name;
+    std::string root_kind;
+    std::uint64_t item_count{};
+    std::int64_t trashed_at{};
 };
 
 struct StudentDetail {
     StudentSummary student;
     std::vector<StudentInfoField> info_fields;
     std::vector<Grade> grades;
-    std::vector<StoredFile> files;
 };
 
 std::int64_t unixTimeMillis();

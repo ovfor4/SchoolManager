@@ -31,6 +31,7 @@ class Statement {
     std::string columnText(int index) const;
     std::optional<std::string> columnOptionalText(int index) const;
     std::int64_t columnInt64(int index) const;
+    std::optional<std::int64_t> columnOptionalInt64(int index) const;
 
   private:
     sqlite3* db_{};

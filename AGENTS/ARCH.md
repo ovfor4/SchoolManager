@@ -2,7 +2,7 @@
 
 ## Goal
 
-SchoolManager manages generic student grade records, student information values, and uploaded files. The system intentionally does not distinguish school grades, standardized scores, contest scores, or language scores at the storage/API level. They are all grade records.
+SchoolManager manages generic student grade records, student information values, and uploaded files. Uploaded files are exposed through the global file manager with a `student_uploads` context. The system intentionally does not distinguish school grades, standardized scores, contest scores, or language scores at the storage/API level. They are all grade records.
 
 ## Repository Layout
 
@@ -31,7 +31,9 @@ The domain layer contains data shapes and pure helpers:
 - `StudentInfoValue`
 - `StudentInfoField`
 - `Grade`
-- `StoredFile`
+- `FileContext`
+- `FileEntry`
+- `TrashEntry`
 - `StudentDetail`
 - ID generation, timestamp helpers, and safe ID validation
 
@@ -45,7 +47,10 @@ The infra layer owns persistence and storage details:
 - `SqliteConnection`: RAII wrapper around `sqlite3*` and prepared statements.
 - `LruSqlitePool`: bounded pool/cache for open SQLite connections.
 - `SchoolIndexRepository`: reads and writes `school_index.db`, including school-wide student information field definitions.
-- `StudentDataRepository`: reads and writes each student's `data.db`, including that student's student information values, grade records, and file records.
+- `StudentDataRepository`: reads and writes each student's `data.db`, including that student's student information values and grade records. It keeps the legacy `files` table only as a migration source.
+- `FileManagerRepository`: reads and writes file manager metadata tables in the context owner's SQLite database.
+- `FileStorage`: owns file-system paths and file moves for active uploads and trash.
+- `FileManagerService`: validates file manager contexts and orchestrates upload, download, folder, rename, trash, restore, and permanent delete workflows.
 
 SQLite connections enable WAL, foreign keys, `busy_timeout`, and normal synchronous mode when opened.
 
@@ -72,13 +77,15 @@ runtime-data/
       data.db
       uploads/
         <stored_file_name>
+        .trash/
+          <trash_uuid>-<name>/
 ```
 
 `school_index.db` contains school-wide student metadata and global student information field definitions. It must not become a cross-student grade or student information value store.
 
-Each student's `data.db` contains that student's student information values, grades, and uploaded-file records. This keeps migration simple: moving a student means moving one folder.
+Each student's `data.db` contains that student's student information values, grades, and file manager metadata for the `student_uploads` context. This keeps migration simple: moving a student means moving one folder.
 
-Uploaded files are stored in the same student folder under `uploads/`.
+Uploaded files are stored in the same student folder under `uploads/`. File manager folders are logical database entries; active folder renames do not move file bytes on disk. Deleted file bytes are moved under `uploads/.trash/<trash_uuid>-<name>/`.
 
 ## Write Flow
 
@@ -111,13 +118,15 @@ Frontend input blur -> PATCH grade fields -> student data.db -> school_index tou
 
 Only fields present in the PATCH request are updated.
 
-File upload uses an atomic activation sequence:
+File upload uses the global file manager API with `contextType=student_uploads` and `contextId=<student_id>`. The upload still uses an atomic activation sequence:
 
 ```text
 write .tmp file -> insert DB pending record -> atomic rename -> mark DB active
 ```
 
-If rename fails, the pending DB record and temporary file are removed.
+`FileManagerService` chooses the temporary path and owns the activation sequence. The HTTP adapter only parses multipart data and supplies a temporary-file writer callback, so large uploads do not require duplicating the uploaded bytes in service code. If rename fails, the pending DB record and temporary file are removed.
+
+File manager delete and restore operations are coordinated in `FileManagerService`, not controllers. Delete creates a trash entry, recursively marks the deleted subtree, and moves file bytes into a single trash directory. Restore moves file bytes back to the active upload root and returns `409` if the original parent is missing or a sibling name conflict exists.
 
 ## Realtime Model
 
@@ -128,7 +137,9 @@ WS /api/ws/students?student_id=<student_id>
 WS /api/ws/students?scope=school
 ```
 
-The backend keeps in-memory WebSocket rooms by student ID for per-student data and a school-level room for the student list. Student metadata mutations broadcast `student.created`, `student.updated`, and `student.deleted` to the school room. Per-student mutations broadcast messages such as `grade.created`, `grade.updated`, `grade.deleted`, and `file.created` to the student room.
+The backend keeps in-memory WebSocket rooms by student ID for per-student data and a school-level room for the student list. Student metadata mutations broadcast `student.created`, `student.updated`, and `student.deleted` to the school room. Per-student mutations broadcast messages such as `grade.created`, `grade.updated`, and `grade.deleted` to the student room.
+
+File manager mutations for `student_uploads` broadcast one `file_manager.changed` message to the matching student room. The message includes `context_type`, `context_id`, and an action such as `entry.created`, `entry.updated`, `entry.trashed`, `trash.restored`, or `trash.deleted`. The frontend invalidates the matching file manager entries and trash query keys instead of storing file state inside `StudentDetail`.
 
 Global student information definition mutations broadcast `student_info_definition.created`, `student_info_definition.updated`, and `student_info_definition.deleted` to the school room. Per-student information value mutations broadcast `student_info.updated` to the relevant student room.
 
@@ -149,7 +160,7 @@ backend/include/schoolmanager/config/Constants.h
 frontend/src/config/constants.ts
 ```
 
-Deployment-specific overrides use environment variables instead of source edits. The backend uses `SM_HOST` and `SM_PORT`; the frontend uses `SM_FRONTEND_HOST`, `SM_FRONTEND_PORT`, `SM_API_PROXY_HOST`, and `SM_API_PROXY_PORT`.
+Deployment-specific overrides use environment variables instead of source edits. The backend uses `SM_HOST`, `SM_PORT`, `SM_MAX_UPLOAD_BYTES`, and `SM_MAX_UPLOAD_MEMORY_BYTES`; the frontend uses `SM_FRONTEND_HOST`, `SM_FRONTEND_PORT`, `SM_API_PROXY_HOST`, and `SM_API_PROXY_PORT`.
 
 ## Frontend State
 

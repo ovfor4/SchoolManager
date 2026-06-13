@@ -1,7 +1,8 @@
 import type {
+  FileContext,
+  FileEntry,
   Grade,
   GradePatch,
-  StoredFile,
   Student,
   StudentDetail,
   StudentInfoDefinition,
@@ -9,6 +10,7 @@ import type {
   StudentInfoField,
   StudentInfoValuePatch,
   StudentPatch,
+  TrashEntry,
 } from './types';
 import {
   apiBaseUrlEnv,
@@ -182,17 +184,23 @@ export async function deleteGrade(studentId: string, gradeId: string): Promise<v
   });
 }
 
-export function uploadFile(
-  studentId: string,
+export async function listFileEntries(context: FileContext, parentId?: string | null): Promise<FileEntry[]> {
+  const data = await request<{ entries: FileEntry[] }>(apiPaths.fileEntries(context, parentId));
+  return data.entries;
+}
+
+export function uploadFileEntry(
+  context: FileContext,
+  parentId: string | null,
   file: File,
   onProgress: (percent: number) => void,
-): Promise<StoredFile> {
+): Promise<FileEntry> {
   const form = new FormData();
   form.append('file', file);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', apiUrl(apiPaths.files(studentId)));
+    xhr.open('POST', apiUrl(apiPaths.fileUpload(context, parentId)));
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         onProgress(Math.round((event.loaded / event.total) * 100));
@@ -200,6 +208,10 @@ export function uploadFile(
     };
     xhr.onload = () => {
       if (xhr.status < 200 || xhr.status >= 300) {
+        if (xhr.status === 413) {
+          reject(new Error('file exceeds server upload limit'));
+          return;
+        }
         try {
           const error = JSON.parse(xhr.responseText) as { error?: string };
           reject(new Error(error.error ?? xhr.statusText));
@@ -208,14 +220,64 @@ export function uploadFile(
         }
         return;
       }
-      const payload = JSON.parse(xhr.responseText) as { file: StoredFile };
-      resolve(payload.file);
+      const payload = JSON.parse(xhr.responseText) as { entry: FileEntry };
+      resolve(payload.entry);
     };
     xhr.onerror = () => reject(new Error('upload failed'));
     xhr.send(form);
   });
 }
 
-export function downloadUrl(studentId: string, fileId: string): string {
-  return apiUrl(apiPaths.fileDownload(studentId, fileId));
+export function downloadFileEntryUrl(context: FileContext, entryId: string): string {
+  return apiUrl(apiPaths.fileEntryDownload(context, entryId));
+}
+
+export async function createFolder(
+  context: FileContext,
+  parentId: string | null,
+  name: string,
+): Promise<FileEntry> {
+  const data = await request<{ entry: FileEntry }>(apiPaths.fileFolders(context), {
+    method: 'POST',
+    body: JSON.stringify({ parent_id: parentId, name }),
+  });
+  return data.entry;
+}
+
+export async function renameEntry(
+  context: FileContext,
+  entryId: string,
+  name: string,
+): Promise<FileEntry> {
+  const data = await request<{ entry: FileEntry }>(apiPaths.fileEntry(context, entryId), {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
+  return data.entry;
+}
+
+export async function moveEntryToTrash(context: FileContext, entryId: string): Promise<void> {
+  await request<{ trashed: boolean }>(apiPaths.fileEntry(context, entryId), {
+    method: 'DELETE',
+  });
+}
+
+export async function listTrash(context: FileContext): Promise<TrashEntry[]> {
+  const data = await request<{ trash: TrashEntry[] }>(apiPaths.fileTrash(context));
+  return data.trash;
+}
+
+export async function restoreTrashEntry(context: FileContext, trashEntryId: string): Promise<void> {
+  await request<{ restored: boolean }>(apiPaths.fileTrashRestore(context, trashEntryId), {
+    method: 'POST',
+  });
+}
+
+export async function permanentlyDeleteTrashEntry(
+  context: FileContext,
+  trashEntryId: string,
+): Promise<void> {
+  await request<{ deleted: boolean }>(apiPaths.fileTrashEntry(context, trashEntryId), {
+    method: 'DELETE',
+  });
 }

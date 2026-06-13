@@ -2,6 +2,9 @@
 #include "schoolmanager/adapters/BroadcastHub.h"
 #include "schoolmanager/adapters/StudentWebSocketController.h"
 #include "schoolmanager/config/Constants.h"
+#include "schoolmanager/infra/FileManagerRepository.h"
+#include "schoolmanager/infra/FileManagerService.h"
+#include "schoolmanager/infra/FileStorage.h"
 #include "schoolmanager/infra/LruSqlitePool.h"
 #include "schoolmanager/infra/SchoolIndexRepository.h"
 #include "schoolmanager/infra/StoragePaths.h"
@@ -12,6 +15,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -40,6 +44,16 @@ std::uint16_t portFromEnv()
     return static_cast<std::uint16_t>(port);
 }
 
+std::size_t sizeFromEnv(std::string_view key, std::size_t fallback)
+{
+    const auto raw = envOrDefault(key, std::to_string(fallback));
+    const auto size = std::stoull(raw);
+    if (size == 0 || size > static_cast<unsigned long long>(std::numeric_limits<std::size_t>::max())) {
+        throw std::runtime_error(std::string(key) + " out of range");
+    }
+    return static_cast<std::size_t>(size);
+}
+
 void addCorsHeaders(const drogon::HttpResponsePtr& response)
 {
     response->addHeader("Access-Control-Allow-Origin", "*");
@@ -62,6 +76,12 @@ int main()
         const auto poolSize = static_cast<std::size_t>(
             std::stoul(envOrDefault(schoolmanager::config::envDbPoolSize,
                                     std::to_string(schoolmanager::config::defaultDbPoolSize))));
+        const auto maxUploadBytes =
+            sizeFromEnv(schoolmanager::config::envMaxUploadBytes,
+                        schoolmanager::config::defaultMaxUploadBytes);
+        const auto maxUploadMemoryBytes =
+            sizeFromEnv(schoolmanager::config::envMaxUploadMemoryBytes,
+                        schoolmanager::config::defaultMaxUploadMemoryBytes);
         const auto openApiPath = std::filesystem::path(
             envOrDefault(schoolmanager::config::envOpenApiPath,
                          schoolmanager::config::defaultOpenApiPath));
@@ -72,6 +92,12 @@ int main()
             std::make_shared<schoolmanager::infra::SchoolIndexRepository>(pool, paths);
         auto studentData =
             std::make_shared<schoolmanager::infra::StudentDataRepository>(pool, paths);
+        auto fileManagerRepository =
+            std::make_shared<schoolmanager::infra::FileManagerRepository>(pool, paths);
+        auto fileManager = std::make_shared<schoolmanager::infra::FileManagerService>(
+            fileManagerRepository,
+            schoolmanager::infra::FileStorage(paths),
+            schoolIndex);
         auto broadcastHub = std::make_shared<schoolmanager::adapters::BroadcastHub>();
 
         schoolIndex->initialize();
@@ -97,7 +123,7 @@ int main()
 
         drogon::app().registerController(
             std::make_shared<schoolmanager::adapters::ApiController>(
-                schoolIndex, studentData, broadcastHub, openApiPath));
+                schoolIndex, studentData, fileManager, broadcastHub, openApiPath));
         schoolmanager::adapters::StudentWebSocketController::setBroadcastHub(broadcastHub);
         schoolmanager::adapters::StudentWebSocketController::initPathRouting();
 
@@ -105,6 +131,8 @@ int main()
                   << " with data root " << std::filesystem::absolute(dataRoot) << '\n';
 
         drogon::app()
+            .setClientMaxBodySize(maxUploadBytes)
+            .setClientMaxMemoryBodySize(maxUploadMemoryBytes)
             .addListener(host, port)
             .setThreadNum(schoolmanager::config::defaultHttpThreadCount)
             .run();

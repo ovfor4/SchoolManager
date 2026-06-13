@@ -53,17 +53,48 @@ Json::Value toJson(const domain::Grade& grade)
     return value;
 }
 
-Json::Value toJson(const domain::StoredFile& file)
+Json::Value toJson(const domain::FileEntry& entry)
 {
     Json::Value value(Json::objectValue);
-    value["id"] = file.id;
-    value["original_name"] = file.original_name;
-    value["stored_name"] = file.stored_name;
-    value["mime_type"] = file.mime_type;
-    value["status"] = file.status;
-    value["size_bytes"] = Json::UInt64(file.size_bytes);
-    value["created_at"] = Json::Int64(file.created_at);
-    value["updated_at"] = Json::Int64(file.updated_at);
+    value["id"] = entry.id;
+    value["context_type"] = entry.context_type;
+    value["context_id"] = entry.context_id;
+    if (entry.parent_id) {
+        value["parent_id"] = *entry.parent_id;
+    } else {
+        value["parent_id"] = Json::nullValue;
+    }
+    value["kind"] = entry.kind;
+    value["name"] = entry.name;
+    value["mime_type"] = entry.mime_type;
+    value["size_bytes"] = Json::UInt64(entry.size_bytes);
+    value["status"] = entry.status;
+    value["created_at"] = Json::Int64(entry.created_at);
+    value["updated_at"] = Json::Int64(entry.updated_at);
+    if (entry.trashed_at) {
+        value["trashed_at"] = Json::Int64(*entry.trashed_at);
+    } else {
+        value["trashed_at"] = Json::nullValue;
+    }
+    return value;
+}
+
+Json::Value toJson(const domain::TrashEntry& entry)
+{
+    Json::Value value(Json::objectValue);
+    value["id"] = entry.id;
+    value["context_type"] = entry.context_type;
+    value["context_id"] = entry.context_id;
+    value["root_entry_id"] = entry.root_entry_id;
+    if (entry.original_parent_id) {
+        value["original_parent_id"] = *entry.original_parent_id;
+    } else {
+        value["original_parent_id"] = Json::nullValue;
+    }
+    value["root_name"] = entry.root_name;
+    value["root_kind"] = entry.root_kind;
+    value["item_count"] = Json::UInt64(entry.item_count);
+    value["trashed_at"] = Json::Int64(entry.trashed_at);
     return value;
 }
 
@@ -103,11 +134,20 @@ Json::Value toJsonArray(const std::vector<domain::Grade>& grades)
     return array;
 }
 
-Json::Value toJsonArray(const std::vector<domain::StoredFile>& files)
+Json::Value toJsonArray(const std::vector<domain::FileEntry>& entries)
 {
     Json::Value array(Json::arrayValue);
-    for (const auto& file : files) {
-        array.append(toJson(file));
+    for (const auto& entry : entries) {
+        array.append(toJson(entry));
+    }
+    return array;
+}
+
+Json::Value toJsonArray(const std::vector<domain::TrashEntry>& entries)
+{
+    Json::Value array(Json::arrayValue);
+    for (const auto& entry : entries) {
+        array.append(toJson(entry));
     }
     return array;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { webSocketUrl } from './client';
+import { fileManagerEntriesPrefix, fileManagerTrashKey } from './fileManagerKeys';
 import { apiPaths } from './paths';
 import type { StudentDetail, WsMessage } from './types';
 import { useDirtyStore } from '../store/dirtyStore';
@@ -37,6 +38,13 @@ export function useStudentSocket(studentId: string | null) {
           return;
         }
 
+        if (message.type === 'file_manager.changed') {
+          const context = { type: message.context_type, id: message.context_id };
+          void queryClient.invalidateQueries({ queryKey: fileManagerEntriesPrefix(context) });
+          void queryClient.invalidateQueries({ queryKey: fileManagerTrashKey(context) });
+          return;
+        }
+
         queryClient.setQueryData<StudentDetail>(['student', studentId], (old) => {
           if (!old) {
             return old;
@@ -66,13 +74,6 @@ export function useStudentSocket(studentId: string | null) {
             return {
               ...old,
               grades: old.grades.filter((grade) => grade.id !== message.id),
-            };
-          }
-          if (message.type === 'file.created') {
-            const exists = old.files.some((file) => file.id === message.file.id);
-            return {
-              ...old,
-              files: exists ? old.files : [message.file, ...old.files],
             };
           }
           return old;

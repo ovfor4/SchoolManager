@@ -36,22 +36,42 @@ export type StudentInfoField = {
   updated_at: number;
 };
 
-export type StoredFile = {
+export type FileContext = {
+  type: 'student_uploads';
   id: string;
-  original_name: string;
-  stored_name: string;
+};
+
+export type FileEntry = {
+  id: string;
+  context_type: string;
+  context_id: string;
+  parent_id: string | null;
+  kind: 'file' | 'folder';
+  name: string;
   mime_type: string;
-  status: 'pending' | 'active';
   size_bytes: number;
+  status: 'pending' | 'active' | 'trashed';
   created_at: number;
   updated_at: number;
+  trashed_at: number | null;
+};
+
+export type TrashEntry = {
+  id: string;
+  context_type: string;
+  context_id: string;
+  root_entry_id: string;
+  original_parent_id: string | null;
+  root_name: string;
+  root_kind: 'file' | 'folder';
+  item_count: number;
+  trashed_at: number;
 };
 
 export type StudentDetail = {
   student: Student;
   info_fields: StudentInfoField[];
   grades: Grade[];
-  files: StoredFile[];
 };
 
 export type StudentPatch = Partial<Pick<Student, 'display_name'>>;
@@ -61,6 +81,13 @@ export type StudentInfoDefinitionPatch = Partial<Pick<StudentInfoDefinition, 'na
 export type StudentInfoValuePatch = Pick<StudentInfoField, 'value'>;
 
 export type GradePatch = Partial<Pick<Grade, 'title' | 'score' | 'max_score' | 'occurred_on' | 'notes'>>;
+
+export type FileManagerAction =
+  | 'entry.created'
+  | 'entry.updated'
+  | 'entry.trashed'
+  | 'trash.restored'
+  | 'trash.deleted';
 
 export type WsMessage =
   | {
@@ -117,10 +144,12 @@ export type WsMessage =
       field_id: string;
     }
   | {
-      type: 'file.created';
+      type: 'file_manager.changed';
       student_id: string;
-      resource: 'file';
+      resource: 'file_manager';
       id: string;
       field_id: string;
-      file: StoredFile;
+      context_type: 'student_uploads';
+      context_id: string;
+      action: FileManagerAction;
     };

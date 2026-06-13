@@ -113,6 +113,14 @@ std::int64_t Statement::columnInt64(int index) const
     return sqlite3_column_int64(stmt_, index);
 }
 
+std::optional<std::int64_t> Statement::columnOptionalInt64(int index) const
+{
+    if (sqlite3_column_type(stmt_, index) == SQLITE_NULL) {
+        return std::nullopt;
+    }
+    return columnInt64(index);
+}
+
 void Statement::finalize() noexcept
 {
     if (stmt_ != nullptr) {

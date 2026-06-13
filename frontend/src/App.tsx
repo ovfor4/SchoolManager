@@ -4,7 +4,7 @@ import { RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { getStudent, listStudents } from './api/client';
 import { useSchoolSocket } from './api/useSchoolSocket';
 import { useStudentSocket } from './api/useStudentSocket';
-import { FilePanel } from './components/FilePanel';
+import { FileManager } from './components/FileManager';
 import { GradeTable } from './components/GradeTable';
 import { StudentInfoDefinitionsPage } from './components/StudentInfoDefinitionsPage';
 import { StudentInfoPanel } from './components/StudentInfoPanel';
@@ -98,7 +98,7 @@ export function App() {
           <div className="contentStack">
             <StudentInfoPanel studentId={selectedStudentId} infoFields={detailQuery.data.info_fields} />
             <GradeTable studentId={selectedStudentId} grades={detailQuery.data.grades} />
-            <FilePanel studentId={selectedStudentId} files={detailQuery.data.files} />
+            <FileManager context={{ type: 'student_uploads', id: selectedStudentId }} />
           </div>
         ) : null}
       </section>

@@ -70,7 +70,7 @@
     },
     "/api/students/{studentId}": {
       "get": {
-        "summary": "Get one student with grades and uploaded files",
+        "summary": "Get one student with info fields and grades",
         "parameters": [
           {
             "$ref": "#/components/parameters/StudentId"
@@ -213,25 +213,64 @@
         }
       }
     },
-    "/api/students/{studentId}/files": {
+    "/api/file-manager/contexts/{contextType}/{contextId}/entries": {
       "get": {
-        "summary": "List uploaded files",
+        "summary": "List active file manager entries for a context and parent folder",
         "parameters": [
           {
-            "$ref": "#/components/parameters/StudentId"
+            "$ref": "#/components/parameters/ContextType"
+          },
+          {
+            "$ref": "#/components/parameters/ContextId"
+          },
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "File list"
+            "description": "File entry list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FileEntry"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
-      },
+      }
+    },
+    "/api/file-manager/contexts/{contextType}/{contextId}/files": {
       "post": {
         "summary": "Upload a file with tmp, DB pending, atomic rename, DB active flow",
         "parameters": [
           {
-            "$ref": "#/components/parameters/StudentId"
+            "$ref": "#/components/parameters/ContextType"
+          },
+          {
+            "$ref": "#/components/parameters/ContextId"
+          },
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -255,20 +294,151 @@
         },
         "responses": {
           "201": {
-            "description": "File uploaded"
+            "description": "File uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entry": {
+                      "$ref": "#/components/schemas/FileEntry"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File exceeds configured upload size limit"
+          },
+          "409": {
+            "description": "Sibling name conflict"
           }
         }
       }
     },
-    "/api/students/{studentId}/files/{fileId}/download": {
+    "/api/file-manager/contexts/{contextType}/{contextId}/folders": {
+      "post": {
+        "summary": "Create a logical folder in a file manager context",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContextType"
+          },
+          {
+            "$ref": "#/components/parameters/ContextId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "parent_id": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Folder created"
+          },
+          "409": {
+            "description": "Sibling name conflict"
+          }
+        }
+      }
+    },
+    "/api/file-manager/contexts/{contextType}/{contextId}/entries/{entryId}": {
+      "patch": {
+        "summary": "Rename an active file or folder",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContextType"
+          },
+          {
+            "$ref": "#/components/parameters/ContextId"
+          },
+          {
+            "$ref": "#/components/parameters/EntryId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entry renamed"
+          },
+          "404": {
+            "description": "Entry not found"
+          },
+          "409": {
+            "description": "Sibling name conflict"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Move an active file or folder subtree to trash",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContextType"
+          },
+          {
+            "$ref": "#/components/parameters/ContextId"
+          },
+          {
+            "$ref": "#/components/parameters/EntryId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entry moved to trash"
+          },
+          "404": {
+            "description": "Entry not found"
+          }
+        }
+      }
+    },
+    "/api/file-manager/contexts/{contextType}/{contextId}/entries/{entryId}/download": {
       "get": {
         "summary": "Download an active uploaded file",
         "parameters": [
           {
-            "$ref": "#/components/parameters/StudentId"
+            "$ref": "#/components/parameters/ContextType"
           },
           {
-            "$ref": "#/components/parameters/FileId"
+            "$ref": "#/components/parameters/ContextId"
+          },
+          {
+            "$ref": "#/components/parameters/EntryId"
           }
         ],
         "responses": {
@@ -277,6 +447,84 @@
           },
           "404": {
             "description": "File not found"
+          }
+        }
+      }
+    },
+    "/api/file-manager/contexts/{contextType}/{contextId}/trash": {
+      "get": {
+        "summary": "List trash entries for a file manager context",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContextType"
+          },
+          {
+            "$ref": "#/components/parameters/ContextId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trash entry list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trash": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TrashEntry"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/file-manager/contexts/{contextType}/{contextId}/trash/{trashEntryId}/restore": {
+      "post": {
+        "summary": "Restore a trash entry to its original parent",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContextType"
+          },
+          {
+            "$ref": "#/components/parameters/ContextId"
+          },
+          {
+            "$ref": "#/components/parameters/TrashEntryId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trash entry restored"
+          },
+          "409": {
+            "description": "Original parent missing or sibling name conflict"
+          }
+        }
+      }
+    },
+    "/api/file-manager/contexts/{contextType}/{contextId}/trash/{trashEntryId}": {
+      "delete": {
+        "summary": "Permanently delete a trash entry and its stored content",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContextType"
+          },
+          {
+            "$ref": "#/components/parameters/ContextId"
+          },
+          {
+            "$ref": "#/components/parameters/TrashEntryId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trash entry permanently deleted"
           }
         }
       }
@@ -300,8 +548,35 @@
           "type": "string"
         }
       },
-      "FileId": {
-        "name": "fileId",
+      "ContextType": {
+        "name": "contextType",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "student_uploads"
+          ]
+        }
+      },
+      "ContextId": {
+        "name": "contextId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "EntryId": {
+        "name": "entryId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "TrashEntryId": {
+        "name": "trashEntryId",
         "in": "path",
         "required": true,
         "schema": {
@@ -410,37 +685,121 @@
         },
         "additionalProperties": false
       },
-      "StoredFile": {
+      "FileEntry": {
         "type": "object",
+        "required": [
+          "id",
+          "context_type",
+          "context_id",
+          "parent_id",
+          "kind",
+          "name",
+          "mime_type",
+          "size_bytes",
+          "status",
+          "created_at",
+          "updated_at",
+          "trashed_at"
+        ],
         "properties": {
           "id": {
             "type": "string"
           },
-          "original_name": {
+          "context_type": {
             "type": "string"
           },
-          "stored_name": {
+          "context_id": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "folder"
+            ]
+          },
+          "name": {
             "type": "string"
           },
           "mime_type": {
             "type": "string"
           },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
           "status": {
             "type": "string",
             "enum": [
               "pending",
-              "active"
+              "active",
+              "trashed"
             ]
-          },
-          "size_bytes": {
-            "type": "integer",
-            "format": "int64"
           },
           "created_at": {
             "type": "integer",
             "format": "int64"
           },
           "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "trashed_at": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "TrashEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "context_type",
+          "context_id",
+          "root_entry_id",
+          "original_parent_id",
+          "root_name",
+          "root_kind",
+          "item_count",
+          "trashed_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "context_type": {
+            "type": "string"
+          },
+          "context_id": {
+            "type": "string"
+          },
+          "root_entry_id": {
+            "type": "string"
+          },
+          "original_parent_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "root_name": {
+            "type": "string"
+          },
+          "root_kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "folder"
+            ]
+          },
+          "item_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "trashed_at": {
             "type": "integer",
             "format": "int64"
           }

@@ -2,12 +2,12 @@
 
 #include "schoolmanager/adapters/JsonHelpers.h"
 #include "schoolmanager/config/Constants.h"
-#include "schoolmanager/infra/StoragePaths.h"
 
 #include <drogon/MultiPart.h>
 #include <drogon/drogon.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -34,6 +34,35 @@ drogon::HttpResponsePtr errorResponse(const std::string& message,
     Json::Value body(Json::objectValue);
     body["error"] = message;
     return jsonResponse(std::move(body), status);
+}
+
+drogon::HttpStatusCode statusForFileManagerError(infra::FileManagerErrorCode code)
+{
+    switch (code) {
+    case infra::FileManagerErrorCode::BadRequest:
+        return drogon::k400BadRequest;
+    case infra::FileManagerErrorCode::NotFound:
+        return drogon::k404NotFound;
+    case infra::FileManagerErrorCode::Conflict:
+        return drogon::k409Conflict;
+    }
+    return drogon::k500InternalServerError;
+}
+
+domain::FileContext fileContext(std::string contextType, std::string contextId)
+{
+    return domain::FileContext{
+        .type = std::move(contextType),
+        .id = std::move(contextId),
+    };
+}
+
+std::optional<std::string> optionalParentId(std::string value)
+{
+    if (value.empty()) {
+        return std::nullopt;
+    }
+    return value;
 }
 
 std::string bodyString(const Json::Value& body,
@@ -168,6 +197,26 @@ void emitStudentDeletedMessage(const std::shared_ptr<BroadcastHub>& hub, std::st
     hub->broadcast(std::string(config::schoolWebSocketRoomId), message);
 }
 
+void emitFileManagerChangedMessage(const std::shared_ptr<BroadcastHub>& hub,
+                                   const domain::FileContext& context,
+                                   std::string_view action)
+{
+    if (context.type != config::studentUploadsContextType) {
+        return;
+    }
+
+    Json::Value message(Json::objectValue);
+    message["type"] = std::string(config::fileManagerChangedMessageType);
+    message["resource"] = std::string(config::fileManagerWebSocketResource);
+    message["id"] = context.type + ":" + context.id;
+    message["field_id"] = "file_manager:" + context.type + ":" + context.id;
+    message["student_id"] = context.id;
+    message["context_type"] = context.type;
+    message["context_id"] = context.id;
+    message["action"] = std::string(action);
+    hub->broadcast(context.id, message);
+}
+
 std::vector<domain::StudentInfoField> mergeStudentInfoFields(
     const std::vector<domain::StudentInfoDefinition>& definitions,
     const std::vector<domain::StudentInfoValue>& values)
@@ -214,10 +263,12 @@ domain::StudentInfoField mergeStudentInfoField(
 
 ApiController::ApiController(std::shared_ptr<infra::SchoolIndexRepository> schoolIndex,
                              std::shared_ptr<infra::StudentDataRepository> studentData,
+                             std::shared_ptr<infra::FileManagerService> fileManager,
                              std::shared_ptr<BroadcastHub> broadcastHub,
                              std::filesystem::path openApiPath)
     : school_index_(std::move(schoolIndex)),
       student_data_(std::move(studentData)),
+      file_manager_(std::move(fileManager)),
       broadcast_hub_(std::move(broadcastHub)),
       open_api_path_(std::move(openApiPath))
 {
@@ -403,7 +454,6 @@ void ApiController::getStudent(const drogon::HttpRequestPtr&, Callback&& callbac
             school_index_->listStudentInfoDefinitions(),
             student_data_->listStudentInfoValues(studentId)));
         body["grades"] = toJsonArray(student_data_->listGrades(studentId));
-        body["files"] = toJsonArray(student_data_->listFiles(studentId));
         callback(jsonResponse(std::move(body)));
     } catch (const std::exception& e) {
         callback(errorResponse(e.what(), drogon::k500InternalServerError));
@@ -663,31 +713,32 @@ void ApiController::deleteGrade(const drogon::HttpRequestPtr&,
     }
 }
 
-void ApiController::listFiles(const drogon::HttpRequestPtr&, Callback&& callback, std::string studentId)
+void ApiController::listFileEntries(const drogon::HttpRequestPtr& request,
+                                    Callback&& callback,
+                                    std::string contextType,
+                                    std::string contextId)
 {
     try {
-        if (!studentExists(studentId)) {
-            callback(errorResponse("student not found", drogon::k404NotFound));
-            return;
-        }
+        const auto entries = file_manager_->listEntries(
+            fileContext(std::move(contextType), std::move(contextId)),
+            optionalParentId(request->getParameter("parent_id")));
+
         Json::Value body(Json::objectValue);
-        body["files"] = toJsonArray(student_data_->listFiles(studentId));
+        body["entries"] = toJsonArray(entries);
         callback(jsonResponse(std::move(body)));
+    } catch (const infra::FileManagerError& e) {
+        callback(errorResponse(e.what(), statusForFileManagerError(e.code())));
     } catch (const std::exception& e) {
         callback(errorResponse(e.what(), drogon::k500InternalServerError));
     }
 }
 
-void ApiController::uploadFile(const drogon::HttpRequestPtr& request,
-                               Callback&& callback,
-                               std::string studentId)
+void ApiController::uploadFileEntry(const drogon::HttpRequestPtr& request,
+                                    Callback&& callback,
+                                    std::string contextType,
+                                    std::string contextId)
 {
     try {
-        if (!studentExists(studentId)) {
-            callback(errorResponse("student not found", drogon::k404NotFound));
-            return;
-        }
-
         drogon::MultiPartParser parser;
         if (parser.parse(request) != 0 || parser.getFiles().empty()) {
             callback(errorResponse("multipart file field is required", drogon::k400BadRequest));
@@ -695,87 +746,195 @@ void ApiController::uploadFile(const drogon::HttpRequestPtr& request,
         }
 
         const auto& upload = parser.getFiles().front();
-        const auto originalName = upload.getFileName().empty() ? "uploaded_file" : upload.getFileName();
-        const auto storedName = domain::createId() + "_" + infra::sanitizeFileName(originalName);
-        const auto uploadDir = student_data_->uploadsDir(studentId);
-        std::filesystem::create_directories(uploadDir);
-        const auto finalPath = student_data_->filePath(studentId, storedName);
-        auto tmpPath = finalPath;
-        tmpPath += ".tmp";
-
-        {
-            std::ofstream output(tmpPath, std::ios::binary | std::ios::trunc);
-            if (!output) {
-                throw std::runtime_error("failed to open temporary upload file");
-            }
-            output.write(upload.fileData(), static_cast<std::streamsize>(upload.fileLength()));
-            if (!output) {
-                throw std::runtime_error("failed to write temporary upload file");
-            }
-        }
-
-        auto pending = student_data_->createPendingFile(studentId,
-                                                        originalName,
-                                                        storedName,
-                                                        "application/octet-stream",
-                                                        upload.fileLength());
-        try {
-            std::filesystem::rename(tmpPath, finalPath);
-        } catch (...) {
-            student_data_->deleteFileRecord(studentId, pending.id);
-            std::error_code ignored;
-            std::filesystem::remove(tmpPath, ignored);
-            throw;
-        }
-
-        const auto active = student_data_->activateFile(studentId, pending.id);
-        if (!active) {
-            throw std::runtime_error("failed to activate uploaded file");
-        }
-        school_index_->touchStudent(studentId, active->updated_at);
+        auto context = fileContext(std::move(contextType), std::move(contextId));
+        const auto entry = file_manager_->uploadFile(
+            context,
+            optionalParentId(request->getParameter("parent_id")),
+            infra::FileUploadPayload{
+                .file_name = upload.getFileName().empty() ? "uploaded_file" : upload.getFileName(),
+                .mime_type = "application/octet-stream",
+                .size_bytes = upload.fileLength(),
+                .write_temp_file =
+                    [&upload](const std::filesystem::path& path) {
+                        if (upload.saveAs(path.string()) != 0) {
+                            throw std::runtime_error("failed to write temporary upload file");
+                        }
+                    },
+            });
 
         Json::Value body(Json::objectValue);
-        body["file"] = toJson(*active);
+        body["entry"] = toJson(entry);
         callback(jsonResponse(std::move(body), drogon::k201Created));
-
-        Json::Value message(Json::objectValue);
-        message["type"] = "file.created";
-        message["student_id"] = studentId;
-        message["resource"] = "file";
-        message["id"] = active->id;
-        message["field_id"] = "file:" + active->id;
-        message["file"] = toJson(*active);
-        broadcast_hub_->broadcast(studentId, message);
+        emitFileManagerChangedMessage(
+            broadcast_hub_, context, config::fileManagerEntryCreatedAction);
+    } catch (const infra::FileManagerError& e) {
+        callback(errorResponse(e.what(), statusForFileManagerError(e.code())));
     } catch (const std::exception& e) {
         callback(errorResponse(e.what(), drogon::k400BadRequest));
     }
 }
 
-void ApiController::downloadFile(const drogon::HttpRequestPtr&,
-                                 Callback&& callback,
-                                 std::string studentId,
-                                 std::string fileId)
+void ApiController::createFileFolder(const drogon::HttpRequestPtr& request,
+                                     Callback&& callback,
+                                     std::string contextType,
+                                     std::string contextId)
 {
     try {
-        if (!studentExists(studentId)) {
-            callback(errorResponse("student not found", drogon::k404NotFound));
-            return;
-        }
-        const auto file = student_data_->getFile(studentId, fileId);
-        if (!file || file->status != "active") {
-            callback(errorResponse("file not found", drogon::k404NotFound));
+        const auto json = request->getJsonObject();
+        if (!json || !json->isObject() || !json->isMember("name")) {
+            callback(errorResponse("name is required", drogon::k400BadRequest));
             return;
         }
 
-        const auto path = student_data_->filePath(studentId, file->stored_name);
-        if (!std::filesystem::exists(path)) {
-            callback(errorResponse("file content missing", drogon::k404NotFound));
+        auto context = fileContext(std::move(contextType), std::move(contextId));
+        const auto folder = file_manager_->createFolder(
+            context,
+            json->isMember("parent_id") ? optionalParentId(scalarToString((*json)["parent_id"]))
+                                        : std::nullopt,
+            scalarToString((*json)["name"]));
+
+        Json::Value body(Json::objectValue);
+        body["entry"] = toJson(folder);
+        callback(jsonResponse(std::move(body), drogon::k201Created));
+        emitFileManagerChangedMessage(
+            broadcast_hub_, context, config::fileManagerEntryCreatedAction);
+    } catch (const infra::FileManagerError& e) {
+        callback(errorResponse(e.what(), statusForFileManagerError(e.code())));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
+    }
+}
+
+void ApiController::renameFileEntry(const drogon::HttpRequestPtr& request,
+                                    Callback&& callback,
+                                    std::string contextType,
+                                    std::string contextId,
+                                    std::string entryId)
+{
+    try {
+        const auto json = request->getJsonObject();
+        if (!json || !json->isObject() || !json->isMember("name")) {
+            callback(errorResponse("name is required", drogon::k400BadRequest));
             return;
         }
 
-        callback(drogon::HttpResponse::newFileResponse(path.string(), file->original_name));
+        auto context = fileContext(std::move(contextType), std::move(contextId));
+        const auto entry = file_manager_->renameEntry(
+            context,
+            entryId,
+            scalarToString((*json)["name"]));
+
+        Json::Value body(Json::objectValue);
+        body["entry"] = toJson(entry);
+        callback(jsonResponse(std::move(body)));
+        emitFileManagerChangedMessage(
+            broadcast_hub_, context, config::fileManagerEntryUpdatedAction);
+    } catch (const infra::FileManagerError& e) {
+        callback(errorResponse(e.what(), statusForFileManagerError(e.code())));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
+    }
+}
+
+void ApiController::moveFileEntryToTrash(const drogon::HttpRequestPtr&,
+                                         Callback&& callback,
+                                         std::string contextType,
+                                         std::string contextId,
+                                         std::string entryId)
+{
+    try {
+        auto context = fileContext(std::move(contextType), std::move(contextId));
+        file_manager_->moveEntryToTrash(context, entryId);
+
+        Json::Value body(Json::objectValue);
+        body["trashed"] = true;
+        callback(jsonResponse(std::move(body)));
+        emitFileManagerChangedMessage(
+            broadcast_hub_, context, config::fileManagerEntryTrashedAction);
+    } catch (const infra::FileManagerError& e) {
+        callback(errorResponse(e.what(), statusForFileManagerError(e.code())));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
+    }
+}
+
+void ApiController::downloadFileEntry(const drogon::HttpRequestPtr&,
+                                      Callback&& callback,
+                                      std::string contextType,
+                                      std::string contextId,
+                                      std::string entryId)
+{
+    try {
+        const auto download = file_manager_->downloadFile(
+            fileContext(std::move(contextType), std::move(contextId)), entryId);
+        callback(drogon::HttpResponse::newFileResponse(download.path.string(), download.entry.name));
+    } catch (const infra::FileManagerError& e) {
+        callback(errorResponse(e.what(), statusForFileManagerError(e.code())));
     } catch (const std::exception& e) {
         callback(errorResponse(e.what(), drogon::k500InternalServerError));
+    }
+}
+
+void ApiController::listFileTrash(const drogon::HttpRequestPtr&,
+                                  Callback&& callback,
+                                  std::string contextType,
+                                  std::string contextId)
+{
+    try {
+        const auto trash =
+            file_manager_->listTrash(fileContext(std::move(contextType), std::move(contextId)));
+
+        Json::Value body(Json::objectValue);
+        body["trash"] = toJsonArray(trash);
+        callback(jsonResponse(std::move(body)));
+    } catch (const infra::FileManagerError& e) {
+        callback(errorResponse(e.what(), statusForFileManagerError(e.code())));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k500InternalServerError));
+    }
+}
+
+void ApiController::restoreFileTrashEntry(const drogon::HttpRequestPtr&,
+                                          Callback&& callback,
+                                          std::string contextType,
+                                          std::string contextId,
+                                          std::string trashEntryId)
+{
+    try {
+        auto context = fileContext(std::move(contextType), std::move(contextId));
+        file_manager_->restoreTrashEntry(context, trashEntryId);
+
+        Json::Value body(Json::objectValue);
+        body["restored"] = true;
+        callback(jsonResponse(std::move(body)));
+        emitFileManagerChangedMessage(
+            broadcast_hub_, context, config::fileManagerTrashRestoredAction);
+    } catch (const infra::FileManagerError& e) {
+        callback(errorResponse(e.what(), statusForFileManagerError(e.code())));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
+    }
+}
+
+void ApiController::permanentlyDeleteFileTrashEntry(const drogon::HttpRequestPtr&,
+                                                    Callback&& callback,
+                                                    std::string contextType,
+                                                    std::string contextId,
+                                                    std::string trashEntryId)
+{
+    try {
+        auto context = fileContext(std::move(contextType), std::move(contextId));
+        file_manager_->permanentlyDeleteTrashEntry(context, trashEntryId);
+
+        Json::Value body(Json::objectValue);
+        body["deleted"] = true;
+        callback(jsonResponse(std::move(body)));
+        emitFileManagerChangedMessage(
+            broadcast_hub_, context, config::fileManagerTrashDeletedAction);
+    } catch (const infra::FileManagerError& e) {
+        callback(errorResponse(e.what(), statusForFileManagerError(e.code())));
+    } catch (const std::exception& e) {
+        callback(errorResponse(e.what(), drogon::k400BadRequest));
     }
 }
 

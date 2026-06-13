@@ -1,6 +1,7 @@
 #pragma once
 
 #include "schoolmanager/adapters/BroadcastHub.h"
+#include "schoolmanager/infra/FileManagerService.h"
 #include "schoolmanager/infra/SchoolIndexRepository.h"
 #include "schoolmanager/infra/StudentDataRepository.h"
 
@@ -15,6 +16,7 @@ class ApiController : public drogon::HttpController<ApiController, false> {
   public:
     ApiController(std::shared_ptr<infra::SchoolIndexRepository> schoolIndex,
                   std::shared_ptr<infra::StudentDataRepository> studentData,
+                  std::shared_ptr<infra::FileManagerService> fileManager,
                   std::shared_ptr<BroadcastHub> broadcastHub,
                   std::filesystem::path openApiPath);
 
@@ -48,11 +50,33 @@ class ApiController : public drogon::HttpController<ApiController, false> {
     ADD_METHOD_TO(ApiController::createGrade, "/api/students/{1}/grades", drogon::Post);
     ADD_METHOD_TO(ApiController::patchGrade, "/api/students/{1}/grades/{2}", drogon::Patch);
     ADD_METHOD_TO(ApiController::deleteGrade, "/api/students/{1}/grades/{2}", drogon::Delete);
-    ADD_METHOD_TO(ApiController::listFiles, "/api/students/{1}/files", drogon::Get);
-    ADD_METHOD_TO(ApiController::uploadFile, "/api/students/{1}/files", drogon::Post);
-    ADD_METHOD_TO(ApiController::downloadFile,
-                  "/api/students/{1}/files/{2}/download",
+    ADD_METHOD_TO(ApiController::listFileEntries,
+                  "/api/file-manager/contexts/{1}/{2}/entries",
                   drogon::Get);
+    ADD_METHOD_TO(ApiController::uploadFileEntry,
+                  "/api/file-manager/contexts/{1}/{2}/files",
+                  drogon::Post);
+    ADD_METHOD_TO(ApiController::createFileFolder,
+                  "/api/file-manager/contexts/{1}/{2}/folders",
+                  drogon::Post);
+    ADD_METHOD_TO(ApiController::renameFileEntry,
+                  "/api/file-manager/contexts/{1}/{2}/entries/{3}",
+                  drogon::Patch);
+    ADD_METHOD_TO(ApiController::moveFileEntryToTrash,
+                  "/api/file-manager/contexts/{1}/{2}/entries/{3}",
+                  drogon::Delete);
+    ADD_METHOD_TO(ApiController::downloadFileEntry,
+                  "/api/file-manager/contexts/{1}/{2}/entries/{3}/download",
+                  drogon::Get);
+    ADD_METHOD_TO(ApiController::listFileTrash,
+                  "/api/file-manager/contexts/{1}/{2}/trash",
+                  drogon::Get);
+    ADD_METHOD_TO(ApiController::restoreFileTrashEntry,
+                  "/api/file-manager/contexts/{1}/{2}/trash/{3}/restore",
+                  drogon::Post);
+    ADD_METHOD_TO(ApiController::permanentlyDeleteFileTrashEntry,
+                  "/api/file-manager/contexts/{1}/{2}/trash/{3}",
+                  drogon::Delete);
     METHOD_LIST_END
 
     void health(const drogon::HttpRequestPtr& request,
@@ -103,20 +127,53 @@ class ApiController : public drogon::HttpController<ApiController, false> {
                      std::function<void(const drogon::HttpResponsePtr&)>&& callback,
                      std::string studentId,
                      std::string gradeId);
-    void listFiles(const drogon::HttpRequestPtr& request,
-                   std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                   std::string studentId);
-    void uploadFile(const drogon::HttpRequestPtr& request,
-                    std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                    std::string studentId);
-    void downloadFile(const drogon::HttpRequestPtr& request,
-                      std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                      std::string studentId,
-                      std::string fileId);
+    void listFileEntries(const drogon::HttpRequestPtr& request,
+                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                         std::string contextType,
+                         std::string contextId);
+    void uploadFileEntry(const drogon::HttpRequestPtr& request,
+                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                         std::string contextType,
+                         std::string contextId);
+    void createFileFolder(const drogon::HttpRequestPtr& request,
+                          std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                          std::string contextType,
+                          std::string contextId);
+    void renameFileEntry(const drogon::HttpRequestPtr& request,
+                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                         std::string contextType,
+                         std::string contextId,
+                         std::string entryId);
+    void moveFileEntryToTrash(const drogon::HttpRequestPtr& request,
+                              std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                              std::string contextType,
+                              std::string contextId,
+                              std::string entryId);
+    void downloadFileEntry(const drogon::HttpRequestPtr& request,
+                           std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                           std::string contextType,
+                           std::string contextId,
+                           std::string entryId);
+    void listFileTrash(const drogon::HttpRequestPtr& request,
+                       std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                       std::string contextType,
+                       std::string contextId);
+    void restoreFileTrashEntry(const drogon::HttpRequestPtr& request,
+                               std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                               std::string contextType,
+                               std::string contextId,
+                               std::string trashEntryId);
+    void permanentlyDeleteFileTrashEntry(
+        const drogon::HttpRequestPtr& request,
+        std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+        std::string contextType,
+        std::string contextId,
+        std::string trashEntryId);
 
   private:
     std::shared_ptr<infra::SchoolIndexRepository> school_index_;
     std::shared_ptr<infra::StudentDataRepository> student_data_;
+    std::shared_ptr<infra::FileManagerService> file_manager_;
     std::shared_ptr<BroadcastHub> broadcast_hub_;
     std::filesystem::path open_api_path_;
 

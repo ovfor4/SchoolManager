@@ -9,6 +9,9 @@ find_package(Drogon REQUIRED)
 add_executable(schoolmanager_backend
     src/main.cc
     src/domain/Models.cc
+    src/infra/FileManagerRepository.cc
+    src/infra/FileManagerService.cc
+    src/infra/FileStorage.cc
     src/infra/LruSqlitePool.cc
     src/infra/SchoolIndexRepository.cc
     src/infra/SqliteConnection.cc

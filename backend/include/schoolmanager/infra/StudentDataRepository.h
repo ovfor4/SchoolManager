@@ -39,20 +39,6 @@ class StudentDataRepository {
                                             const std::map<std::string, std::string>& changes);
     bool deleteGrade(std::string_view studentId, std::string_view gradeId);
 
-    domain::StoredFile createPendingFile(std::string_view studentId,
-                                         std::string originalName,
-                                         std::string storedName,
-                                         std::string mimeType,
-                                         std::uint64_t sizeBytes);
-    std::optional<domain::StoredFile> activateFile(std::string_view studentId,
-                                                   std::string_view fileId);
-    void deleteFileRecord(std::string_view studentId, std::string_view fileId);
-    std::vector<domain::StoredFile> listFiles(std::string_view studentId);
-    std::optional<domain::StoredFile> getFile(std::string_view studentId, std::string_view fileId);
-
-    std::filesystem::path uploadsDir(std::string_view studentId) const;
-    std::filesystem::path filePath(std::string_view studentId, std::string_view storedName) const;
-
   private:
     std::shared_ptr<LruSqlitePool> pool_;
     StoragePaths paths_;
