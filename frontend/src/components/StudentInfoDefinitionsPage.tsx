@@ -7,11 +7,15 @@ import {
   listStudentInfoDefinitions,
   patchStudentInfoDefinition,
 } from '../api/client';
+import {
+  sortStudentInfoDefinitions,
+  sortStudentInfoFields,
+  studentInfoFieldFromDefinition,
+} from '../api/studentInfoFields';
 import type {
   StudentDetail,
   StudentInfoDefinition,
   StudentInfoDefinitionPatch,
-  StudentInfoField,
   StudentInfoValueType,
 } from '../api/types';
 import { useDirtyStore } from '../store/dirtyStore';
@@ -27,52 +31,6 @@ function nextFieldName(infoFields: StudentInfoDefinition[]): string {
     index += 1;
   }
   return `field_${index}`;
-}
-
-function isValueCompatible(valueType: StudentInfoValueType, value: string): boolean {
-  if (value === '') {
-    return true;
-  }
-  if (valueType === 'INTEGER') {
-    return /^[+-]?\d+$/.test(value);
-  }
-  if (valueType === 'DATE') {
-    return /^\d{4}-\d{2}-\d{2}$/.test(value);
-  }
-  return true;
-}
-
-function fieldFromDefinition(
-  definition: StudentInfoDefinition,
-  existing?: StudentInfoField,
-): StudentInfoField {
-  const value = existing && isValueCompatible(definition.value_type, existing.value) ? existing.value : '';
-  return {
-    id: definition.id,
-    name: definition.name,
-    display_name: definition.display_name,
-    value_type: definition.value_type,
-    value,
-    updated_at: Math.max(definition.updated_at, existing?.updated_at ?? definition.updated_at),
-  };
-}
-
-function sortInfoDefinitions(definitions: StudentInfoDefinition[]): StudentInfoDefinition[] {
-  return [...definitions].sort((left, right) => {
-    const displayCompare = left.display_name.localeCompare(right.display_name, undefined, {
-      sensitivity: 'base',
-    });
-    return displayCompare === 0 ? left.name.localeCompare(right.name) : displayCompare;
-  });
-}
-
-function sortStudentInfoFields(fields: StudentInfoField[]): StudentInfoField[] {
-  return [...fields].sort((left, right) => {
-    const displayCompare = left.display_name.localeCompare(right.display_name, undefined, {
-      sensitivity: 'base',
-    });
-    return displayCompare === 0 ? left.name.localeCompare(right.name) : displayCompare;
-  });
 }
 
 function normalizeCommitValue(field: DefinitionField, value: string, draft: StudentInfoDefinition): string {
@@ -133,7 +91,7 @@ export function StudentInfoDefinitionsPage() {
         return old;
       }
       const existing = old.info_fields.find((field) => field.id === definition.id);
-      const nextField = fieldFromDefinition(definition, existing);
+      const nextField = studentInfoFieldFromDefinition(definition, existing);
       return {
         ...old,
         info_fields: sortStudentInfoFields([
@@ -156,7 +114,7 @@ export function StudentInfoDefinitionsPage() {
     },
     onSuccess: (definition) => {
       queryClient.setQueryData<StudentInfoDefinition[]>(['student-info-definitions'], (old = []) => [
-        ...sortInfoDefinitions([definition, ...old.filter((field) => field.id !== definition.id)]),
+        ...sortStudentInfoDefinitions([definition, ...old.filter((field) => field.id !== definition.id)]),
       ]);
       applyDefinitionToStudentDetails(definition);
     },
@@ -177,7 +135,11 @@ export function StudentInfoDefinitionsPage() {
         clearDirty(`student_info_definition:${variables.fieldId}:${field}`);
       }
       queryClient.setQueryData<StudentInfoDefinition[]>(['student-info-definitions'], (old) =>
-        old ? sortInfoDefinitions(old.map((field) => (field.id === definition.id ? definition : field))) : old,
+        old
+          ? sortStudentInfoDefinitions(
+              old.map((field) => (field.id === definition.id ? definition : field)),
+            )
+          : old,
       );
       applyDefinitionToStudentDetails(definition);
     },

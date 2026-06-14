@@ -9,6 +9,8 @@ SchoolManager manages generic student grade records, student information values,
 - `backend/`: C++23 backend.
 - `backend/include/schoolmanager/domain`: pure domain models and domain helpers.
 - `backend/src/domain`: domain implementations.
+- `backend/include/schoolmanager/application`: backend use cases and application-level aggregation.
+- `backend/src/application`: application use-case implementations.
 - `backend/include/schoolmanager/infra`: SQLite, file-system storage, and connection-pool interfaces.
 - `backend/src/infra`: infrastructure implementations.
 - `backend/include/schoolmanager/adapters`: HTTP, WebSocket, and JSON adapter interfaces.
@@ -39,6 +41,17 @@ The domain layer contains data shapes and pure helpers:
 
 This layer must not depend on Drogon, SQLite, or the file system.
 
+### Application
+
+The application layer owns backend use-case orchestration across repositories:
+
+- `StudentUseCases`: student list/create/detail/update/delete workflows, including per-student database initialization after school-index creation.
+- `StudentInfoUseCases`: global student information definition workflows, per-student value updates, definition deletion cleanup, and student-info field aggregation.
+- `GradeUseCases`: grade list/create/update/delete workflows and school-index touch updates after grade changes.
+- `StudentInfoFields`: pure aggregation helpers for combining global definitions with per-student values.
+
+Application code may depend on domain and infra. It must not depend on Drogon, JSON, WebSocket adapters, or other external protocols.
+
 ### Infra
 
 The infra layer owns persistence and storage details:
@@ -58,12 +71,17 @@ SQLite connections enable WAL, foreign keys, `busy_timeout`, and normal synchron
 
 The adapters layer translates external protocols into domain/infra calls:
 
-- `ApiController`: HTTP API routes.
+- `SystemController`: health and OpenAPI routes.
+- `StudentsController`: student metadata and student detail HTTP routes.
+- `StudentInfoController`: student information definition and value HTTP routes.
+- `GradesController`: grade HTTP routes.
+- `FileManagerController`: file manager HTTP routes.
 - `StudentWebSocketController`: WebSocket room join and ping/pong handling.
+- `RealtimePublisher`: WebSocket message construction for HTTP-triggered mutations.
 - `BroadcastHub`: in-memory per-student WebSocket rooms.
 - `JsonHelpers`: JSON serialization/deserialization helpers.
 
-Adapters may depend on domain and infra. Domain and infra must not depend on adapters.
+Adapters may depend on application, domain, and infra. Domain, application, and infra must not depend on adapters.
 
 ## Storage Model
 

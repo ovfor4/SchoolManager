@@ -1,6 +1,14 @@
-#include "schoolmanager/adapters/ApiController.h"
 #include "schoolmanager/adapters/BroadcastHub.h"
+#include "schoolmanager/adapters/FileManagerController.h"
+#include "schoolmanager/adapters/GradesController.h"
+#include "schoolmanager/adapters/RealtimePublisher.h"
+#include "schoolmanager/adapters/StudentInfoController.h"
 #include "schoolmanager/adapters/StudentWebSocketController.h"
+#include "schoolmanager/adapters/StudentsController.h"
+#include "schoolmanager/adapters/SystemController.h"
+#include "schoolmanager/application/GradeUseCases.h"
+#include "schoolmanager/application/StudentInfoUseCases.h"
+#include "schoolmanager/application/StudentUseCases.h"
 #include "schoolmanager/config/Constants.h"
 #include "schoolmanager/infra/FileManagerRepository.h"
 #include "schoolmanager/infra/FileManagerService.h"
@@ -99,6 +107,15 @@ int main()
             schoolmanager::infra::FileStorage(paths),
             schoolIndex);
         auto broadcastHub = std::make_shared<schoolmanager::adapters::BroadcastHub>();
+        auto realtimePublisher =
+            std::make_shared<schoolmanager::adapters::RealtimePublisher>(broadcastHub);
+        auto studentUseCases =
+            std::make_shared<schoolmanager::application::StudentUseCases>(schoolIndex, studentData);
+        auto studentInfoUseCases =
+            std::make_shared<schoolmanager::application::StudentInfoUseCases>(schoolIndex,
+                                                                              studentData);
+        auto gradeUseCases =
+            std::make_shared<schoolmanager::application::GradeUseCases>(schoolIndex, studentData);
 
         schoolIndex->initialize();
 
@@ -122,8 +139,21 @@ int main()
             });
 
         drogon::app().registerController(
-            std::make_shared<schoolmanager::adapters::ApiController>(
-                schoolIndex, studentData, fileManager, broadcastHub, openApiPath));
+            std::make_shared<schoolmanager::adapters::SystemController>(openApiPath));
+        drogon::app().registerController(std::make_shared<schoolmanager::adapters::StudentsController>(
+            studentUseCases,
+            realtimePublisher));
+        drogon::app().registerController(
+            std::make_shared<schoolmanager::adapters::StudentInfoController>(
+                studentInfoUseCases,
+                realtimePublisher));
+        drogon::app().registerController(std::make_shared<schoolmanager::adapters::GradesController>(
+            gradeUseCases,
+            realtimePublisher));
+        drogon::app().registerController(
+            std::make_shared<schoolmanager::adapters::FileManagerController>(
+                fileManager,
+                realtimePublisher));
         schoolmanager::adapters::StudentWebSocketController::setBroadcastHub(broadcastHub);
         schoolmanager::adapters::StudentWebSocketController::initPathRouting();
 

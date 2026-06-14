@@ -8,6 +8,10 @@ find_package(Drogon REQUIRED)
 
 add_executable(schoolmanager_backend
     src/main.cc
+    src/application/GradeUseCases.cc
+    src/application/StudentInfoFields.cc
+    src/application/StudentInfoUseCases.cc
+    src/application/StudentUseCases.cc
     src/domain/Models.cc
     src/infra/FileManagerRepository.cc
     src/infra/FileManagerService.cc
@@ -17,10 +21,16 @@ add_executable(schoolmanager_backend
     src/infra/SqliteConnection.cc
     src/infra/StoragePaths.cc
     src/infra/StudentDataRepository.cc
-    src/adapters/ApiController.cc
     src/adapters/BroadcastHub.cc
+    src/adapters/FileManagerController.cc
+    src/adapters/GradesController.cc
+    src/adapters/HttpJson.cc
     src/adapters/JsonHelpers.cc
+    src/adapters/RealtimePublisher.cc
+    src/adapters/StudentInfoController.cc
     src/adapters/StudentWebSocketController.cc
+    src/adapters/StudentsController.cc
+    src/adapters/SystemController.cc
 )
 
 target_include_directories(schoolmanager_backend
