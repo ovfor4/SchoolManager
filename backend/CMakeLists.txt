@@ -5,10 +5,14 @@ if(POLICY CMP0153)
 endif()
 
 find_package(Drogon REQUIRED)
+find_package(PkgConfig REQUIRED)
 find_package(ZLIB REQUIRED)
+pkg_check_modules(CMARK_GFM REQUIRED IMPORTED_TARGET libcmark-gfm)
+find_library(HPDF_LIBRARY REQUIRED NAMES hpdf)
 
 add_executable(schoolmanager_backend
     src/main.cc
+    src/application/DocumentFormats.cc
     src/application/FileTemplateUseCases.cc
     src/application/GradeUseCases.cc
     src/application/StudentInfoFields.cc
@@ -54,6 +58,8 @@ target_compile_options(schoolmanager_backend PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(schoolmanager_backend
     PRIVATE
         Drogon::Drogon
+        PkgConfig::CMARK_GFM
         SQLite3_lib
+        ${HPDF_LIBRARY}
         ZLIB::ZLIB
 )

@@ -51,10 +51,25 @@ std::string nameWithCopySuffix(const std::string& name, int copyIndex)
     return stem + " (" + std::to_string(copyIndex) + ")" + extension;
 }
 
-std::string generatedFileName(const domain::StudentSummary& student,
-                              std::string_view templateName)
+std::string templateStem(std::string_view templateName)
 {
-    return infra::sanitizeFileName(student.display_name + "-" + std::string(templateName));
+    const auto path = std::filesystem::path(std::string(templateName));
+    auto stem = path.stem().string();
+    if (stem.empty()) {
+        stem = path.filename().string();
+    }
+    if (stem.empty()) {
+        stem = "template";
+    }
+    return stem;
+}
+
+std::string generatedFileName(const domain::StudentSummary& student,
+                              std::string_view templateName,
+                              std::string_view extension)
+{
+    return infra::sanitizeFileName(student.display_name + "-" + templateStem(templateName) +
+                                   std::string(extension));
 }
 
 std::string uniqueFileName(std::string name, std::unordered_set<std::string>& usedNames)
@@ -86,14 +101,22 @@ FileTemplateUseCases::FileTemplateUseCases(
     std::shared_ptr<infra::FileManagerService> fileManager,
     std::shared_ptr<infra::SchoolIndexRepository> schoolIndex,
     std::shared_ptr<infra::StudentDataRepository> studentData,
-    std::shared_ptr<TemplateProcessorRegistry> processors,
+    std::shared_ptr<DocumentFormatRegistry> documents,
     infra::ZipArchiveWriter zipWriter)
     : file_manager_(std::move(fileManager)),
       school_index_(std::move(schoolIndex)),
       student_data_(std::move(studentData)),
-      processors_(std::move(processors)),
+      documents_(std::move(documents)),
       zip_writer_(std::move(zipWriter))
 {
+}
+
+DocumentFormatCapabilities FileTemplateUseCases::capabilities() const
+{
+    if (!documents_) {
+        throw std::runtime_error("document format registry is required");
+    }
+    return documents_->capabilities();
 }
 
 GeneratedFileDownload FileTemplateUseCases::generate(const FileTemplateGenerateRequest& request)
@@ -101,15 +124,30 @@ GeneratedFileDownload FileTemplateUseCases::generate(const FileTemplateGenerateR
     if (!domain::isSafeId(request.template_entry_id)) {
         throw ApplicationError(ApplicationErrorCode::BadRequest, "template_entry_id is invalid");
     }
-    if (request.student_ids.empty()) {
-        throw ApplicationError(ApplicationErrorCode::BadRequest, "student_ids is required");
-    }
-    if (!processors_) {
-        throw std::runtime_error("template processor registry is required");
+    if (!documents_) {
+        throw std::runtime_error("document format registry is required");
     }
 
     const auto source = loadTemplate(request.template_entry_id);
-    const auto& processor = processors_->processorFor(source.file_name, source.mime_type);
+    const auto& sourceFormat = documents_->resolveSourceFormat(request.source_format,
+                                                               source.file_name,
+                                                               source.mime_type);
+    const auto& exportFormat = documents_->resolveExportFormat(sourceFormat, request.export_format);
+
+    if (!sourceFormat.supports_student_variables) {
+        return GeneratedFileDownload{
+            .file_name = source.file_name,
+            .mime_type = source.mime_type.empty() ? std::string(config::octetStreamMimeType)
+                                                  : source.mime_type,
+            .content = source.content,
+        };
+    }
+
+    if (request.student_ids.empty()) {
+        throw ApplicationError(ApplicationErrorCode::BadRequest, "student_ids is required");
+    }
+
+    const auto& renderer = documents_->variableRendererFor(sourceFormat);
     const auto definitions = school_index_->listStudentInfoDefinitions();
 
     std::vector<RenderedStudentFile> files;
@@ -126,9 +164,12 @@ GeneratedFileDownload FileTemplateUseCases::generate(const FileTemplateGenerateR
             throw ApplicationError(ApplicationErrorCode::NotFound, "student not found");
         }
 
-        const auto processed = processor.render(source, variablesForStudent(*student, definitions));
+        const auto rendered = renderer.render(source.content, variablesForStudent(*student, definitions));
+        const auto processed = documents_->convert(sourceFormat, exportFormat, rendered);
         files.push_back(RenderedStudentFile{
-            .file_name = uniqueFileName(generatedFileName(*student, source.file_name), usedFileNames),
+            .file_name = uniqueFileName(
+                generatedFileName(*student, source.file_name, processed.extension),
+                usedFileNames),
             .mime_type = processed.mime_type,
             .content = processed.content,
         });
@@ -182,11 +223,11 @@ TemplateSource FileTemplateUseCases::loadTemplate(std::string_view templateEntry
     }
 }
 
-TemplateRenderVariables FileTemplateUseCases::variablesForStudent(
+DocumentRenderVariables FileTemplateUseCases::variablesForStudent(
     const domain::StudentSummary& student,
     const std::vector<domain::StudentInfoDefinition>& definitions)
 {
-    TemplateRenderVariables variables;
+    DocumentRenderVariables variables;
     variables.values_by_name.emplace(std::string(config::templateReservedStudentNameVariable),
                                      student.display_name);
     for (const auto& field : mergeStudentInfoFields(definitions,
@@ -194,13 +235,6 @@ TemplateRenderVariables FileTemplateUseCases::variablesForStudent(
         variables.values_by_name.emplace(field.name, field.value);
     }
     return variables;
-}
-
-std::shared_ptr<TemplateProcessorRegistry> createDefaultTemplateProcessorRegistry()
-{
-    auto registry = std::make_shared<TemplateProcessorRegistry>();
-    registry->registerProcessor(createPlainTextTemplateProcessor());
-    return registry;
 }
 
 }  // namespace schoolmanager::application

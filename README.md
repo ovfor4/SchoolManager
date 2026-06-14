@@ -31,7 +31,10 @@ sudo apt-get install -y \
   build-essential\
   uuid-dev\
   libpq-dev\
-  libbrotli-dev
+  libbrotli-dev\
+  libcmark-gfm-dev\
+  libhpdf-dev\
+  libcmark-gfm-extensions-dev
 
 npm --prefix frontend ci
 ```

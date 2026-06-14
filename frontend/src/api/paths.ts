@@ -45,6 +45,7 @@ export const apiPaths = {
     `${fileContextPath(context)}/trash/${segment(trashEntryId)}/restore`,
   fileTrashEntry: (context: FileContext, trashEntryId: string) =>
     `${fileContextPath(context)}/trash/${segment(trashEntryId)}`,
+  fileTemplatesCapabilities: () => `${apiRootPath}/file-templates/capabilities`,
   fileTemplatesGenerate: () => `${apiRootPath}/file-templates/generate`,
   schoolSocket: () =>
     `${webSocketStudentsPath}?${webSocketScopeParameter}=${encodeURIComponent(webSocketSchoolScope)}`,

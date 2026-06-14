@@ -119,14 +119,14 @@ int main()
                                                                               studentData);
         auto gradeUseCases =
             std::make_shared<schoolmanager::application::GradeUseCases>(schoolIndex, studentData);
-        auto templateProcessors =
-            schoolmanager::application::createDefaultTemplateProcessorRegistry();
+        auto documentFormats =
+            schoolmanager::application::createDefaultDocumentFormatRegistry();
         auto fileTemplateUseCases =
             std::make_shared<schoolmanager::application::FileTemplateUseCases>(
                 fileManager,
                 schoolIndex,
                 studentData,
-                templateProcessors,
+                documentFormats,
                 schoolmanager::infra::ZipArchiveWriter{});
 
         schoolIndex->initialize();

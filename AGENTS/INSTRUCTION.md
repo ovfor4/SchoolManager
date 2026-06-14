@@ -9,6 +9,14 @@
 - Do not introduce Docker unless explicitly requested.
 - Do not use C++ Modules.
 
+## Maintainability and Extension Design
+
+- Prefer slightly more structured code when it makes future maintenance and extension materially simpler.
+- Keep capability matrices, format IDs, file extensions, MIME mappings, and default selections in one cohesive registry or metadata definition instead of scattering them through constants, UI code, and use cases.
+- When adding a new format, protocol variant, or conversion path, the intended maintenance shape is: implement the new focused function/class, register its metadata in the existing registry, and avoid touching orchestration code unless the workflow itself changes.
+- Use cases should orchestrate business flow and call reusable interfaces; they should not encode format-specific parsing, conversion, or UI option rules.
+- Frontend components should consume backend capabilities and shared helpers for matching/defaulting logic instead of hardcoding server-side format matrices.
+
 ## No Hardcoding
 
 Do not scatter hardcoded strings, numbers, paths, route fragments, table names, JSON field names, or protocol constants through implementation files.

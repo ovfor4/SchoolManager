@@ -15,11 +15,16 @@ class FileTemplateController : public drogon::HttpController<FileTemplateControl
         std::shared_ptr<application::FileTemplateUseCases> fileTemplates);
 
     METHOD_LIST_BEGIN
+    ADD_METHOD_TO(FileTemplateController::capabilities,
+                  "/api/file-templates/capabilities",
+                  drogon::Get);
     ADD_METHOD_TO(FileTemplateController::generate,
                   "/api/file-templates/generate",
                   drogon::Post);
     METHOD_LIST_END
 
+    void capabilities(const drogon::HttpRequestPtr& request,
+                      std::function<void(const drogon::HttpResponsePtr&)>&& callback);
     void generate(const drogon::HttpRequestPtr& request,
                   std::function<void(const drogon::HttpResponsePtr&)>&& callback);
 

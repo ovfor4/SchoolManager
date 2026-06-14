@@ -84,12 +84,37 @@ export type GradePatch = Partial<Pick<Grade, 'title' | 'score' | 'max_score' | '
 
 export type FileTemplateGenerateRequest = {
   template_entry_id: string;
-  student_ids: string[];
+  student_ids?: string[];
+  source_format?: string;
+  export_format?: string;
 };
 
 export type GeneratedFileDownload = {
   blob: Blob;
   fileName: string;
+};
+
+export type DocumentSourceFormat = {
+  id: string;
+  label: string;
+  extensions: string[];
+  mime_types: string[];
+  default_export_format: string;
+  export_formats: string[];
+  supports_student_variables: boolean;
+};
+
+export type DocumentExportFormat = {
+  id: string;
+  label: string;
+  extension: string;
+  mime_type: string;
+};
+
+export type FileTemplateCapabilities = {
+  default_source_format: string;
+  source_formats: DocumentSourceFormat[];
+  export_formats: DocumentExportFormat[];
 };
 
 export type FileManagerAction =

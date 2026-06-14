@@ -529,9 +529,26 @@
         }
       }
     },
+    "/api/file-templates/capabilities": {
+      "get": {
+        "summary": "List supported file template source and export formats",
+        "responses": {
+          "200": {
+            "description": "Supported document formats for template generation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileTemplateCapabilities"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/file-templates/generate": {
       "post": {
-        "summary": "Generate files from a global template for one or more students",
+        "summary": "Generate or download files from a global template",
         "requestBody": {
           "required": true,
           "content": {
@@ -544,9 +561,15 @@
         },
         "responses": {
           "200": {
-            "description": "Generated text file for one student, or zip archive for multiple students",
+            "description": "Generated file for one student, or zip archive for multiple students",
             "content": {
               "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/pdf": {
                 "schema": {
                   "type": "string",
                   "format": "binary"
@@ -729,8 +752,7 @@
       "FileTemplateGenerateRequest": {
         "type": "object",
         "required": [
-          "template_entry_id",
-          "student_ids"
+          "template_entry_id"
         ],
         "properties": {
           "template_entry_id": {
@@ -742,6 +764,107 @@
               "type": "string"
             },
             "minItems": 1
+          },
+          "source_format": {
+            "type": "string"
+          },
+          "export_format": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FileTemplateCapabilities": {
+        "type": "object",
+        "required": [
+          "default_source_format",
+          "source_formats",
+          "export_formats"
+        ],
+        "properties": {
+          "default_source_format": {
+            "type": "string"
+          },
+          "source_formats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSourceFormat"
+            }
+          },
+          "export_formats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentExportFormat"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentSourceFormat": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "extensions",
+          "mime_types",
+          "default_export_format",
+          "export_formats",
+          "supports_student_variables"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mime_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default_export_format": {
+            "type": "string"
+          },
+          "export_formats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supports_student_variables": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentExportFormat": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "extension",
+          "mime_type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string"
           }
         },
         "additionalProperties": false

@@ -773,6 +773,12 @@ button:disabled {
   padding: 12px;
 }
 
+.templateFormatGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .batchSelectionHeader {
   display: flex;
   align-items: center;
@@ -999,6 +1005,10 @@ button:disabled {
   }
 
   .batchOperationRow {
+    grid-template-columns: 1fr;
+  }
+
+  .templateFormatGrid {
     grid-template-columns: 1fr;
   }
 

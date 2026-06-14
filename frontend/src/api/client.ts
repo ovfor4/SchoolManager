@@ -1,6 +1,7 @@
 import type {
   FileContext,
   FileEntry,
+  FileTemplateCapabilities,
   FileTemplateGenerateRequest,
   GeneratedFileDownload,
   Grade,
@@ -329,4 +330,8 @@ export async function generateFileTemplates(
     blob: await response.blob(),
     fileName: fileNameFromDisposition(response.headers.get('Content-Disposition'), 'generated-file.txt'),
   };
+}
+
+export async function getFileTemplateCapabilities(): Promise<FileTemplateCapabilities> {
+  return request<FileTemplateCapabilities>(apiPaths.fileTemplatesCapabilities());
 }

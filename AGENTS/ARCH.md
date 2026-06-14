@@ -49,8 +49,9 @@ The application layer owns backend use-case orchestration across repositories:
 - `StudentInfoUseCases`: global student information definition workflows, per-student value updates, definition deletion cleanup, and student-info field aggregation.
 - `GradeUseCases`: grade list/create/update/delete workflows and school-index touch updates after grade changes.
 - `StudentInfoFields`: pure aggregation helpers for combining global definitions with per-student values.
-- `FileTemplateUseCases`: reusable file-template generation workflows. It loads active template files from the global template library through `FileManagerService`, dispatches to a registered template processor, aggregates student variables, and returns either one generated file or a zip archive.
-- `TemplateProcessorRegistry` and template processors: application-level dispatch by file name, MIME type, or extension. The current registered processor handles plain text templates.
+- `FileTemplateUseCases`: reusable file-template generation workflows. It loads active template files from the global template library through `FileManagerService`, resolves source/export formats through `DocumentFormatRegistry`, renders student variables through the source-format renderer, converts through registered document converters, and returns either one generated file or a zip archive.
+- `DocumentFormatRegistry`: application-level source/export capability registry. It centralizes public format IDs, labels, extensions, MIME hints, defaults, supported export pairs, internal implementation format IDs, source-format variable renderers, and source-to-target converters.
+- `DocumentVariableRenderer` and `DocumentConverter`: reusable interfaces for document rendering and conversion. Text and Markdown variable rendering reuse `TemplateTextRenderer`; Markdown-to-PDF conversion uses `cmark-gfm` for parsing and `libhpdf` for PDF output. DOCX is not registered; future DOCX support must be added as an isolated converter implementation rather than handwritten OOXML/XML inside use cases.
 - `TemplateTextRenderer`: pure text substitution for template variables.
 
 Application code may depend on domain and infra. It must not depend on Drogon, JSON, WebSocket adapters, or other external protocols.
@@ -164,13 +165,21 @@ Global template library edits use the same file manager API with `contextType=gl
 Frontend Template Library -> File Manager API -> school_index.db file metadata -> global_templates/default file bytes -> school WebSocket broadcast
 ```
 
+Template generation capabilities are exposed through `GET /api/file-templates/capabilities`. The response is the frontend's source of truth for source formats, export formats, default selections, file extension and MIME matching, whether student variables are supported, and legal source/export pairs. Batch Template UI must consume this metadata and the shared frontend document-format helpers instead of hardcoding the matrix.
+
 Template generation is a backend use case exposed through `POST /api/file-templates/generate`. The template entry must be an active file in `global_templates/default`; folders cannot be generated. The generation path does not write generated files back into File Manager storage:
 
 ```text
-Frontend Batch Template action -> POST file template generate -> load active global template file -> render per student -> return text file or zip download
+Frontend Batch Template action -> POST file template generate -> load active global template file -> resolve source/export formats -> render variables when supported -> convert -> return file or zip download
 ```
 
-Text templates support student information variables by unique global student info `name`, for example `{dateofbirth}`. The reserved variable `{__name}` resolves to the student's `display_name`; double underscores mark backend-reserved variables that are not student info fields. Unknown variables, missing fields, empty values, empty `{}`, illegal variable names, and unclosed `{` text remain unchanged. `\{` and `\}` emit literal braces and do not participate in variable recognition. Replacements are not parsed a second time.
+The public document format matrix currently has source formats `other`, `text`, and `markdown`, and export formats `other`, `text`, and `pdf`. The default selection is `other` source to `other` export. `other` is the user-facing fallback for ordinary files and maps internally to the text implementation, so unknown extensions can still use the existing text variable renderer without exposing an `original` format. Text source exports text. Markdown source exports PDF by default. Markdown-to-Markdown or DOCX export is not part of the current public capability matrix.
+
+When a source format does not support student variables, generation returns the selected template file directly once. When a source format supports student variables, `student_ids` is required. One generated artifact downloads directly; multiple student artifacts are zipped with duplicate output names de-duplicated before writing the archive.
+
+Text-compatible template sources support student information variables by unique global student info `name`, for example `{dateofbirth}`. The reserved variable `{__name}` resolves to the student's `display_name`; double underscores mark backend-reserved variables that are not student info fields. Unknown variables, missing fields, empty values, empty `{}`, illegal variable names, and unclosed `{` text remain unchanged. `\{` and `\}` emit literal braces and do not participate in variable recognition. Replacements are not parsed a second time.
+
+Markdown conversion validates the parsed Markdown AST before PDF output. Unsupported Markdown nodes return a clear `400` error such as `unsupported Markdown feature: table` instead of silently dropping or corrupting content.
 
 ## Realtime Model
 
@@ -218,7 +227,7 @@ Student names, student information values, and grade cells autosave on `blur`. G
 
 Student detail headers display the student's `display_name` and `id`. The `folder_path` field remains storage metadata for backend/file-system bookkeeping and must not be used as a user-facing student label.
 
-The Batch page is action-driven. It defaults to a `None` action with no additional parameters. The Template action renders its parameters below the action selector, reuses the global Template Library file manager in read-only mode for template selection, and sends the selected template entry plus selected student IDs to the backend generation endpoint. Other batch actions should follow the same action-selector plus action-parameter structure.
+The Batch page is action-driven. It defaults to a `None` action with no additional parameters. The Template action renders its parameters below the action selector, reuses the global Template Library file manager in read-only mode for template selection, loads document capabilities from the backend, auto-selects source/export formats from the selected file metadata, allows explicit user overrides, and sends the selected template entry, selected student IDs, source format, and export format to the backend generation endpoint. Other batch actions should follow the same action-selector plus action-parameter structure.
 
 ## API Contract
 
@@ -230,3 +239,12 @@ GET /api/openapi.json
 ```
 
 When changing routes or payloads, update the OpenAPI file in the same change.
+
+The file-template API includes:
+
+```text
+GET /api/file-templates/capabilities
+POST /api/file-templates/generate
+```
+
+`source_format` and `export_format` are flexible string IDs validated by the backend registry, not frontend-owned enums.
