@@ -175,7 +175,9 @@ void RealtimePublisher::gradeDeleted(std::string_view studentId, std::string_vie
 void RealtimePublisher::fileManagerChanged(const domain::FileContext& context,
                                            std::string_view action)
 {
-    if (context.type != config::studentUploadsContextType) {
+    if (context.type != config::studentUploadsContextType &&
+        !(context.type == config::globalTemplatesContextType &&
+          context.id == config::defaultGlobalTemplatesContextId)) {
         return;
     }
 
@@ -184,11 +186,17 @@ void RealtimePublisher::fileManagerChanged(const domain::FileContext& context,
     message["resource"] = std::string(config::fileManagerWebSocketResource);
     message["id"] = context.type + ":" + context.id;
     message["field_id"] = "file_manager:" + context.type + ":" + context.id;
-    message["student_id"] = context.id;
     message["context_type"] = context.type;
     message["context_id"] = context.id;
     message["action"] = std::string(action);
-    hub_->broadcast(context.id, message);
+
+    if (context.type == config::studentUploadsContextType) {
+        message["student_id"] = context.id;
+        hub_->broadcast(context.id, message);
+        return;
+    }
+
+    hub_->broadcast(std::string(config::schoolWebSocketRoomId), message);
 }
 
 }  // namespace schoolmanager::adapters

@@ -17,6 +17,8 @@ class StoragePaths {
     std::filesystem::path studentDir(std::string_view studentId) const;
     std::filesystem::path studentDataDb(std::string_view studentId) const;
     std::filesystem::path studentUploadsDir(std::string_view studentId) const;
+    std::filesystem::path globalTemplatesRoot() const;
+    std::filesystem::path globalTemplateLibraryDir(std::string_view libraryId) const;
 
   private:
     std::filesystem::path root_;

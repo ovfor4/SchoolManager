@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ListChecks, Plus, Trash2, UserRound } from 'lucide-react';
+import { ChevronDown, ChevronRight, Files, ListChecks, Plus, Trash2, UserRound } from 'lucide-react';
 import { createStudent, deleteStudent, patchStudent } from '../api/client';
 import type { Student, StudentDetail } from '../api/types';
 
-export type AppView = 'student' | 'global-settings';
+export type AppView = 'student' | 'student-info-settings' | 'template-library-settings' | 'batch';
 
 type StudentSidebarProps = {
   students: Student[];
@@ -12,7 +12,9 @@ type StudentSidebarProps = {
   activeView: AppView;
   loading: boolean;
   onSelect: (studentId: string | null) => void;
-  onOpenGlobalSettings: () => void;
+  onOpenStudentInfoSettings: () => void;
+  onOpenTemplateLibrarySettings: () => void;
+  onOpenBatch: () => void;
 };
 
 export function StudentSidebar({
@@ -21,12 +23,18 @@ export function StudentSidebar({
   activeView,
   loading,
   onSelect,
-  onOpenGlobalSettings,
+  onOpenStudentInfoSettings,
+  onOpenTemplateLibrarySettings,
+  onOpenBatch,
 }: StudentSidebarProps) {
   const [displayName, setDisplayName] = useState('');
   const [studentDrafts, setStudentDrafts] = useState<Record<string, string>>({});
   const [dirtyStudentNames, setDirtyStudentNames] = useState<Record<string, boolean>>({});
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const [templateSettingsExpanded, setTemplateSettingsExpanded] = useState(false);
   const queryClient = useQueryClient();
+  const settingsActive =
+    activeView === 'student-info-settings' || activeView === 'template-library-settings';
 
   useEffect(() => {
     setStudentDrafts((current) => {
@@ -39,6 +47,15 @@ export function StudentSidebar({
       return next;
     });
   }, [dirtyStudentNames, students]);
+
+  useEffect(() => {
+    if (settingsActive) {
+      setSettingsExpanded(true);
+    }
+    if (activeView === 'template-library-settings') {
+      setTemplateSettingsExpanded(true);
+    }
+  }, [activeView, settingsActive]);
 
   const createMutation = useMutation({
     mutationKey: ['create-student'],
@@ -137,11 +154,57 @@ export function StudentSidebar({
 
       <button
         type="button"
-        className={`sidebarNavButton ${activeView === 'global-settings' ? 'active' : ''}`}
-        onClick={onOpenGlobalSettings}
+        className={`sidebarNavButton ${settingsActive ? 'active' : ''}`}
+        onClick={() => {
+          setSettingsExpanded((current) => !current);
+          if (!settingsActive) {
+            onOpenStudentInfoSettings();
+          }
+        }}
       >
         <ListChecks size={17} />
         <span>Global Settings</span>
+        {settingsExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+      </button>
+
+      {settingsExpanded ? (
+        <div className="sidebarChildGroup">
+          <button
+            type="button"
+            className={`sidebarNavButton child ${activeView === 'student-info-settings' ? 'active' : ''}`}
+            onClick={onOpenStudentInfoSettings}
+          >
+            <span>Student Info</span>
+          </button>
+          <button
+            type="button"
+            className={`sidebarNavButton child ${activeView === 'template-library-settings' ? 'active' : ''}`}
+            onClick={() => setTemplateSettingsExpanded((current) => !current)}
+          >
+            <span>Template Settings</span>
+            {templateSettingsExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          </button>
+          {templateSettingsExpanded ? (
+            <div className="sidebarChildGroup nested">
+              <button
+                type="button"
+                className={`sidebarNavButton child ${activeView === 'template-library-settings' ? 'active' : ''}`}
+                onClick={onOpenTemplateLibrarySettings}
+              >
+                <span>Template Library</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        className={`sidebarNavButton ${activeView === 'batch' ? 'active' : ''}`}
+        onClick={onOpenBatch}
+      >
+        <Files size={17} />
+        <span>Batch</span>
       </button>
 
       <div className="studentList">

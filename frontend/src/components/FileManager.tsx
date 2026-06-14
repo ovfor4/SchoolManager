@@ -24,11 +24,25 @@ import { TrashView } from './TrashView';
 
 type FileManagerProps = {
   context: FileContext;
+  title?: string;
+  rootLabel?: string;
+  emptyLabel?: string;
+  readOnly?: boolean;
+  selectedFileId?: string | null;
+  onSelectFile?: (entry: FileEntry) => void;
 };
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : undefined);
 
-export function FileManager({ context }: FileManagerProps) {
+export function FileManager({
+  context,
+  title = 'Files',
+  rootLabel = 'Files',
+  emptyLabel = 'No files',
+  readOnly = false,
+  selectedFileId,
+  onSelectFile,
+}: FileManagerProps) {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [path, setPath] = useState<FileEntry[]>([]);
@@ -42,6 +56,12 @@ export function FileManager({ context }: FileManagerProps) {
     setView('files');
   }, [context.type, context.id]);
 
+  useEffect(() => {
+    if (readOnly) {
+      setView('files');
+    }
+  }, [readOnly]);
+
   const parentId = path.length > 0 ? path[path.length - 1].id : null;
 
   const fileQuery = useQuery({
@@ -53,7 +73,7 @@ export function FileManager({ context }: FileManagerProps) {
   const trashQuery = useQuery({
     queryKey: fileManagerTrashKey(context),
     queryFn: () => listTrash(context),
-    enabled: view === 'trash',
+    enabled: !readOnly && view === 'trash',
   });
 
   const invalidateFiles = () => {
@@ -136,7 +156,7 @@ export function FileManager({ context }: FileManagerProps) {
     <section className="workspaceSection fileManager">
       <div className="sectionHeader">
         <div>
-          <h2>Files</h2>
+          <h2>{title}</h2>
           <span>{view === 'files' ? `${fileQuery.data?.length ?? 0} entries` : `${trashQuery.data?.length ?? 0} trash`}</span>
         </div>
       </div>
@@ -144,6 +164,8 @@ export function FileManager({ context }: FileManagerProps) {
       <FileManagerToolbar
         view={view}
         path={path}
+        rootLabel={rootLabel}
+        readOnly={readOnly}
         uploading={uploadMutation.isPending}
         onUpload={() => inputRef.current?.click()}
         onCreateFolder={() => setFolderDialogOpen(true)}
@@ -166,6 +188,10 @@ export function FileManager({ context }: FileManagerProps) {
           context={context}
           entries={fileQuery.data ?? []}
           loading={fileQuery.isLoading}
+          emptyLabel={emptyLabel}
+          readOnly={readOnly}
+          selectedFileId={selectedFileId}
+          onSelectFile={onSelectFile}
           onOpenFolder={(entry) => setPath((current) => [...current, entry])}
           onRename={setRenamingEntry}
           onTrash={(entry) => trashMutation.mutate(entry)}

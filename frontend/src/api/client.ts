@@ -1,6 +1,8 @@
 import type {
   FileContext,
   FileEntry,
+  FileTemplateGenerateRequest,
+  GeneratedFileDownload,
   Grade,
   GradePatch,
   Student,
@@ -50,6 +52,25 @@ export const WS_BASE_URL = trimTrailingSlashes(
 
 export const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
 export const webSocketUrl = (path: string) => `${WS_BASE_URL}${path}`;
+
+const fileNameFromDisposition = (disposition: string | null, fallback: string) => {
+  if (!disposition) {
+    return fallback;
+  }
+
+  const encodedMatch = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+  if (encodedMatch?.[1]) {
+    return decodeURIComponent(encodedMatch[1].trim());
+  }
+
+  const quotedMatch = /filename="([^"]+)"/i.exec(disposition);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  const plainMatch = /filename=([^;]+)/i.exec(disposition);
+  return plainMatch?.[1]?.trim() || fallback;
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(path), {
@@ -280,4 +301,32 @@ export async function permanentlyDeleteTrashEntry(
   await request<{ deleted: boolean }>(apiPaths.fileTrashEntry(context, trashEntryId), {
     method: 'DELETE',
   });
+}
+
+export async function generateFileTemplates(
+  payload: FileTemplateGenerateRequest,
+): Promise<GeneratedFileDownload> {
+  const response = await fetch(apiUrl(apiPaths.fileTemplatesGenerate()), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const error = (await response.json()) as { error?: string };
+      if (error.error) {
+        message = error.error;
+      }
+    } catch {
+      // Keep the HTTP status text when the server returns a non-JSON response.
+    }
+    throw new Error(message);
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName: fileNameFromDisposition(response.headers.get('Content-Disposition'), 'generated-file.txt'),
+  };
 }

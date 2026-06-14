@@ -215,6 +215,17 @@ void rollbackMoves(const FileStorage& storage, const std::vector<FileMove>& move
     }
 }
 
+bool isStudentUploadsContext(const domain::FileContext& context)
+{
+    return context.type == config::studentUploadsContextType;
+}
+
+bool isGlobalTemplatesContext(const domain::FileContext& context)
+{
+    return context.type == config::globalTemplatesContextType &&
+           context.id == config::defaultGlobalTemplatesContextId;
+}
+
 }  // namespace
 
 FileManagerError::FileManagerError(FileManagerErrorCode code, const std::string& message)
@@ -245,6 +256,14 @@ std::vector<domain::FileEntry> FileManagerService::listEntries(
     return repository_->listEntries(context, parentId);
 }
 
+std::optional<domain::FileEntry> FileManagerService::getEntry(
+    const domain::FileContext& context,
+    std::string_view entryId)
+{
+    ensureContext(context);
+    return repository_->getEntry(context, entryId);
+}
+
 domain::FileEntry FileManagerService::uploadFile(const domain::FileContext& context,
                                                  const std::optional<std::string>& parentId,
                                                  const FileUploadPayload& payload)
@@ -270,7 +289,7 @@ domain::FileEntry FileManagerService::uploadFile(const domain::FileContext& cont
     }
 
     const auto mimeType =
-        payload.mime_type.empty() ? std::string("application/octet-stream") : payload.mime_type;
+        payload.mime_type.empty() ? std::string(config::octetStreamMimeType) : payload.mime_type;
     auto pending = repository_->createPendingFile(
         context, parentId, name, storageName, mimeType, payload.size_bytes);
 
@@ -461,15 +480,17 @@ void FileManagerService::permanentlyDeleteTrashEntry(const domain::FileContext& 
 
 void FileManagerService::ensureContext(const domain::FileContext& context)
 {
-    if (context.type != config::studentUploadsContextType) {
+    if (!isStudentUploadsContext(context) && !isGlobalTemplatesContext(context)) {
         throw FileManagerError(FileManagerErrorCode::BadRequest, "unsupported file context type");
     }
-    if (!domain::isSafeId(context.id)) {
+
+    if (isStudentUploadsContext(context) && !domain::isSafeId(context.id)) {
         throw FileManagerError(FileManagerErrorCode::BadRequest, "invalid file context id");
     }
-    if (!school_index_->getStudent(context.id)) {
+    if (isStudentUploadsContext(context) && !school_index_->getStudent(context.id)) {
         throw FileManagerError(FileManagerErrorCode::NotFound, "student not found");
     }
+
     storage_.ensureRoot(context);
     repository_->initializeContext(context);
 }

@@ -17,6 +17,10 @@ std::filesystem::path FileStorage::rootDir(const domain::FileContext& context) c
     if (context.type == config::studentUploadsContextType) {
         return paths_.studentUploadsDir(context.id);
     }
+    if (context.type == config::globalTemplatesContextType &&
+        context.id == config::defaultGlobalTemplatesContextId) {
+        return paths_.globalTemplateLibraryDir(context.id);
+    }
     throw std::runtime_error("unsupported file context type");
 }
 

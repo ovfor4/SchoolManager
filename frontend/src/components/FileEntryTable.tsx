@@ -1,4 +1,4 @@
-import { Download, FileText, Folder, Pencil, Trash2 } from 'lucide-react';
+import { Check, Download, FileText, Folder, Pencil, Trash2 } from 'lucide-react';
 import type { FileContext, FileEntry } from '../api/types';
 import { downloadFileEntryUrl } from '../api/client';
 
@@ -6,6 +6,10 @@ type FileEntryTableProps = {
   context: FileContext;
   entries: FileEntry[];
   loading: boolean;
+  emptyLabel?: string;
+  readOnly?: boolean;
+  selectedFileId?: string | null;
+  onSelectFile?: (entry: FileEntry) => void;
   onOpenFolder: (entry: FileEntry) => void;
   onRename: (entry: FileEntry) => void;
   onTrash: (entry: FileEntry) => void;
@@ -30,6 +34,10 @@ export function FileEntryTable({
   context,
   entries,
   loading,
+  emptyLabel = 'No files',
+  readOnly = false,
+  selectedFileId,
+  onSelectFile,
   onOpenFolder,
   onRename,
   onTrash,
@@ -56,7 +64,7 @@ export function FileEntryTable({
           ) : entries.length === 0 ? (
             <tr>
               <td className="emptyCell" colSpan={5}>
-                No files
+                {emptyLabel}
               </td>
             </tr>
           ) : (
@@ -79,6 +87,16 @@ export function FileEntryTable({
                 <td>{formatSize(entry)}</td>
                 <td>{formatDate(entry.updated_at)}</td>
                 <td className="fileActions">
+                  {entry.kind === 'file' && onSelectFile ? (
+                    <button
+                      type="button"
+                      className={selectedFileId === entry.id ? 'iconButton active' : 'iconButton'}
+                      onClick={() => onSelectFile(entry)}
+                      aria-label={`Select ${entry.name}`}
+                    >
+                      <Check size={17} />
+                    </button>
+                  ) : null}
                   {entry.kind === 'file' ? (
                     <a
                       className="iconButton"
@@ -88,17 +106,26 @@ export function FileEntryTable({
                       <Download size={17} />
                     </a>
                   ) : null}
-                  <button type="button" className="iconButton" onClick={() => onRename(entry)} aria-label={`Rename ${entry.name}`}>
-                    <Pencil size={17} />
-                  </button>
-                  <button
-                    type="button"
-                    className="iconButton danger"
-                    onClick={() => onTrash(entry)}
-                    aria-label={`Move ${entry.name} to trash`}
-                  >
-                    <Trash2 size={17} />
-                  </button>
+                  {!readOnly ? (
+                    <>
+                      <button
+                        type="button"
+                        className="iconButton"
+                        onClick={() => onRename(entry)}
+                        aria-label={`Rename ${entry.name}`}
+                      >
+                        <Pencil size={17} />
+                      </button>
+                      <button
+                        type="button"
+                        className="iconButton danger"
+                        onClick={() => onTrash(entry)}
+                        aria-label={`Move ${entry.name} to trash`}
+                      >
+                        <Trash2 size={17} />
+                      </button>
+                    </>
+                  ) : null}
                 </td>
               </tr>
             ))

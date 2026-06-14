@@ -5,13 +5,17 @@ if(POLICY CMP0153)
 endif()
 
 find_package(Drogon REQUIRED)
+find_package(ZLIB REQUIRED)
 
 add_executable(schoolmanager_backend
     src/main.cc
+    src/application/FileTemplateUseCases.cc
     src/application/GradeUseCases.cc
     src/application/StudentInfoFields.cc
     src/application/StudentInfoUseCases.cc
     src/application/StudentUseCases.cc
+    src/application/TemplateProcessor.cc
+    src/application/TemplateTextRenderer.cc
     src/domain/Models.cc
     src/infra/FileManagerRepository.cc
     src/infra/FileManagerService.cc
@@ -21,8 +25,10 @@ add_executable(schoolmanager_backend
     src/infra/SqliteConnection.cc
     src/infra/StoragePaths.cc
     src/infra/StudentDataRepository.cc
+    src/infra/ZipArchiveWriter.cc
     src/adapters/BroadcastHub.cc
     src/adapters/FileManagerController.cc
+    src/adapters/FileTemplateController.cc
     src/adapters/GradesController.cc
     src/adapters/HttpJson.cc
     src/adapters/JsonHelpers.cc
@@ -49,4 +55,5 @@ target_link_libraries(schoolmanager_backend
     PRIVATE
         Drogon::Drogon
         SQLite3_lib
+        ZLIB::ZLIB
 )

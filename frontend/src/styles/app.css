@@ -94,7 +94,8 @@ button:disabled {
 .gradeTable input,
 .infoFormFrame input,
 .infoTable input,
-.infoTable select {
+.infoTable select,
+.fieldLabel select {
   width: 100%;
   min-width: 0;
   border: 1px solid #c9d1dc;
@@ -114,11 +115,27 @@ button:disabled {
   padding: 0 11px;
 }
 
+.fieldLabel {
+  display: grid;
+  gap: 6px;
+}
+
+.fieldLabel span {
+  color: #59616d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fieldLabel select {
+  height: 38px;
+  padding: 0 10px;
+}
+
 .studentCreate button,
-.iconButton {
+.iconButton,
+.textButton {
   display: inline-grid;
   place-items: center;
-  width: 40px;
   height: 40px;
   border: 1px solid #c9d1dc;
   border-radius: 6px;
@@ -126,10 +143,21 @@ button:disabled {
   color: #1f2328;
 }
 
+.studentCreate button,
+.iconButton {
+  width: 40px;
+}
+
+.textButton {
+  min-width: 60px;
+  padding: 0 12px;
+}
+
 .studentCreate button:hover,
 .iconButton:hover,
 .iconTextButton:hover,
-.sidebarNavButton:hover {
+.sidebarNavButton:hover,
+.textButton:hover {
   border-color: #2f8f83;
   color: #176b61;
 }
@@ -149,10 +177,35 @@ button:disabled {
   text-align: left;
 }
 
+.sidebarNavButton span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebarNavButton.child {
+  min-height: 36px;
+  padding-left: 30px;
+  font-size: 13px;
+}
+
 .sidebarNavButton.active {
   border-color: #b7d7d2;
   background: #eef8f6;
   color: #176b61;
+}
+
+.sidebarChildGroup {
+  display: grid;
+  gap: 6px;
+  margin-top: -12px;
+}
+
+.sidebarChildGroup.nested {
+  margin-top: -2px;
+  padding-left: 14px;
 }
 
 .studentList {
@@ -435,6 +488,7 @@ button:disabled {
 .infoFormFrame input:focus,
 .infoTable input:focus,
 .infoTable select:focus,
+.fieldLabel select:focus,
 .studentNameInput:focus,
 .studentCreate input:focus {
   border-color: #2f8f83;
@@ -496,6 +550,12 @@ button:disabled {
 .iconButton.danger:hover {
   border-color: #d76b6b;
   color: #b42318;
+}
+
+.iconButton.active {
+  border-color: #2f8f83;
+  background: #eef8f6;
+  color: #176b61;
 }
 
 .hiddenFileInput {
@@ -642,7 +702,7 @@ button:disabled {
 }
 
 .fileTable th:nth-child(5) {
-  width: 132px;
+  width: 172px;
 }
 
 .fileNameButton,
@@ -684,6 +744,97 @@ button:disabled {
 .fileActions .iconButton {
   width: 32px;
   height: 32px;
+}
+
+.batchPage {
+  align-content: start;
+}
+
+.batchGrid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(280px, 1.1fr);
+  gap: 12px;
+}
+
+.batchOperationRow {
+  display: grid;
+  grid-template-columns: minmax(220px, 360px);
+  margin-bottom: 12px;
+}
+
+.batchPanel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.batchSelectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.batchSelectionHeader strong {
+  font-size: 14px;
+}
+
+.batchSelectionHeader div {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.studentCheckList {
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.studentCheckRow {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) minmax(110px, 0.7fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid #e7ebf0;
+  border-radius: 6px;
+  padding: 7px 9px;
+}
+
+.studentCheckRow input {
+  width: 16px;
+  height: 16px;
+}
+
+.studentCheckRow span,
+.studentCheckRow small,
+.selectedTemplateRow span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studentCheckRow small {
+  color: #69717d;
+  font-size: 12px;
+}
+
+.selectedTemplateRow {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid #e7ebf0;
+  border-radius: 6px;
+  padding: 7px 9px;
 }
 
 .dialogBackdrop {
@@ -841,5 +992,21 @@ button:disabled {
 
   .fileToolbarActions {
     justify-content: flex-start;
+  }
+
+  .batchGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .batchOperationRow {
+    grid-template-columns: 1fr;
+  }
+
+  .studentCheckRow {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .studentCheckRow small {
+    grid-column: 2;
   }
 }

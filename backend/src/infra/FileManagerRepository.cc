@@ -152,6 +152,28 @@ void rollbackQuietly(SqliteConnection& db)
     }
 }
 
+bool isStudentUploadsContext(const domain::FileContext& context)
+{
+    return context.type == config::studentUploadsContextType && domain::isSafeId(context.id);
+}
+
+bool isGlobalTemplatesContext(const domain::FileContext& context)
+{
+    return context.type == config::globalTemplatesContextType &&
+           context.id == config::defaultGlobalTemplatesContextId;
+}
+
+std::filesystem::path contextRootDir(const StoragePaths& paths, const domain::FileContext& context)
+{
+    if (context.type == config::studentUploadsContextType) {
+        return paths.studentUploadsDir(context.id);
+    }
+    if (context.type == config::globalTemplatesContextType) {
+        return paths.globalTemplateLibraryDir(context.id);
+    }
+    throw std::runtime_error("unsupported file context type");
+}
+
 }  // namespace
 
 FileManagerRepository::FileManagerRepository(std::shared_ptr<LruSqlitePool> pool,
@@ -162,14 +184,11 @@ FileManagerRepository::FileManagerRepository(std::shared_ptr<LruSqlitePool> pool
 
 void FileManagerRepository::initializeContext(const domain::FileContext& context)
 {
-    if (context.type != config::studentUploadsContextType) {
+    if (!isStudentUploadsContext(context) && !isGlobalTemplatesContext(context)) {
         throw std::runtime_error("unsupported file context type");
     }
-    if (!domain::isSafeId(context.id)) {
-        throw std::runtime_error("invalid file context id");
-    }
 
-    std::filesystem::create_directories(paths_.studentUploadsDir(context.id));
+    std::filesystem::create_directories(contextRootDir(paths_, context));
     auto db = acquireContextDb(context);
     auto guard = db->lock();
     db->executeUnlocked(R"SQL(
@@ -789,11 +808,11 @@ void FileManagerRepository::permanentlyDeleteTrashEntry(const domain::FileContex
 std::shared_ptr<SqliteConnection> FileManagerRepository::acquireContextDb(
     const domain::FileContext& context)
 {
-    if (context.type == config::studentUploadsContextType) {
-        if (!domain::isSafeId(context.id)) {
-            throw std::runtime_error("invalid file context id");
-        }
+    if (isStudentUploadsContext(context)) {
         return pool_->acquire(paths_.studentDataDb(context.id));
+    }
+    if (isGlobalTemplatesContext(context)) {
+        return pool_->acquire(paths_.schoolIndexDb());
     }
     throw std::runtime_error("unsupported file context type");
 }

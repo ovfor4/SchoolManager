@@ -4,11 +4,17 @@ import { RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { getStudent, listStudents } from './api/client';
 import { useSchoolSocket } from './api/useSchoolSocket';
 import { useStudentSocket } from './api/useStudentSocket';
+import { BatchPage } from './components/BatchPage';
 import { FileManager } from './components/FileManager';
 import { GradeTable } from './components/GradeTable';
 import { StudentInfoDefinitionsPage } from './components/StudentInfoDefinitionsPage';
 import { StudentInfoPanel } from './components/StudentInfoPanel';
 import { AppView, StudentSidebar } from './components/StudentSidebar';
+import {
+  defaultGlobalTemplatesContextId,
+  globalTemplatesContextType,
+  studentUploadsContextType,
+} from './config/constants';
 
 export function App() {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -44,7 +50,22 @@ export function App() {
   const studentSocketStatus = useStudentSocket(activeView === 'student' ? selectedStudentId : null);
   const socketStatus =
     schoolSocketStatus === 'connected' || studentSocketStatus === 'connected' ? 'connected' : 'reconnecting';
-  const studentSubtitle = detailQuery.data?.student.id ?? 'Student grade workspace';
+  const pageTitle =
+    activeView === 'student-info-settings'
+      ? 'Student Info'
+      : activeView === 'template-library-settings'
+        ? 'Template Library'
+      : activeView === 'batch'
+        ? 'Batch'
+        : detailQuery.data?.student.display_name ?? 'SchoolManager';
+  const pageSubtitle =
+    activeView === 'student-info-settings'
+      ? 'Global settings'
+      : activeView === 'template-library-settings'
+        ? 'Template settings'
+      : activeView === 'batch'
+        ? 'Template generation'
+        : detailQuery.data?.student.id ?? 'Student grade workspace';
 
   const openStudent = (studentId: string | null) => {
     setActiveView('student');
@@ -59,20 +80,18 @@ export function App() {
         activeView={activeView}
         loading={studentsQuery.isLoading}
         onSelect={openStudent}
-        onOpenGlobalSettings={() => setActiveView('global-settings')}
+        onOpenStudentInfoSettings={() => setActiveView('student-info-settings')}
+        onOpenTemplateLibrarySettings={() => setActiveView('template-library-settings')}
+        onOpenBatch={() => setActiveView('batch')}
       />
 
       <section className="workArea">
         <header className="topBar">
           <div>
             <h1>
-              {activeView === 'global-settings'
-                ? 'Global Settings'
-                : detailQuery.data?.student.display_name ?? 'SchoolManager'}
+              {pageTitle}
             </h1>
-            <p>
-              {activeView === 'global-settings' ? 'School-wide configuration' : studentSubtitle}
-            </p>
+            <p>{pageSubtitle}</p>
           </div>
           <div className="statusCluster">
             <span className={`statusPill ${socketStatus === 'connected' ? 'ok' : 'muted'}`}>
@@ -86,8 +105,20 @@ export function App() {
           </div>
         </header>
 
-        {activeView === 'global-settings' ? (
+        {activeView === 'student-info-settings' ? (
           <StudentInfoDefinitionsPage />
+        ) : activeView === 'template-library-settings' ? (
+          <FileManager
+            context={{
+              type: globalTemplatesContextType,
+              id: defaultGlobalTemplatesContextId,
+            }}
+            title="Template Library"
+            rootLabel="Templates"
+            emptyLabel="No templates"
+          />
+        ) : activeView === 'batch' ? (
+          <BatchPage students={studentsQuery.data ?? []} loading={studentsQuery.isLoading} />
         ) : !selectedStudentId ? (
           <div className="emptyState">Create a student to start.</div>
         ) : detailQuery.isLoading ? (
@@ -98,7 +129,7 @@ export function App() {
           <div className="contentStack">
             <StudentInfoPanel studentId={selectedStudentId} infoFields={detailQuery.data.info_fields} />
             <GradeTable studentId={selectedStudentId} grades={detailQuery.data.grades} />
-            <FileManager context={{ type: 'student_uploads', id: selectedStudentId }} />
+            <FileManager context={{ type: studentUploadsContextType, id: selectedStudentId }} />
           </div>
         ) : null}
       </section>

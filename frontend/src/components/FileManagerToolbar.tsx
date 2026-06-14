@@ -4,6 +4,8 @@ import type { FileEntry } from '../api/types';
 type FileManagerToolbarProps = {
   view: 'files' | 'trash';
   path: FileEntry[];
+  rootLabel: string;
+  readOnly: boolean;
   uploading: boolean;
   onUpload: () => void;
   onCreateFolder: () => void;
@@ -15,6 +17,8 @@ type FileManagerToolbarProps = {
 export function FileManagerToolbar({
   view,
   path,
+  rootLabel,
+  readOnly,
   uploading,
   onUpload,
   onCreateFolder,
@@ -26,7 +30,7 @@ export function FileManagerToolbar({
     <div className="fileManagerToolbar">
       <div className="fileBreadcrumbs" aria-label="Folder path">
         <button type="button" className="breadcrumbButton" onClick={() => onOpenPathIndex(-1)}>
-          Files
+          {rootLabel}
         </button>
         {path.map((entry, index) => (
           <span key={entry.id} className="breadcrumbSegment">
@@ -37,24 +41,26 @@ export function FileManagerToolbar({
           </span>
         ))}
       </div>
-      <div className="fileToolbarActions">
-        <div className="segmentedControl" aria-label="File manager view">
-          <button type="button" className={view === 'files' ? 'active' : ''} onClick={onOpenFiles}>
-            Files
+      {!readOnly ? (
+        <div className="fileToolbarActions">
+          <div className="segmentedControl" aria-label="File manager view">
+            <button type="button" className={view === 'files' ? 'active' : ''} onClick={onOpenFiles}>
+              Files
+            </button>
+            <button type="button" className={view === 'trash' ? 'active' : ''} onClick={onOpenTrash}>
+              Trash
+            </button>
+          </div>
+          <button className="iconTextButton" type="button" onClick={onCreateFolder} disabled={view !== 'files'}>
+            <FolderPlus size={18} />
+            Folder
           </button>
-          <button type="button" className={view === 'trash' ? 'active' : ''} onClick={onOpenTrash}>
-            Trash
+          <button className="iconTextButton" type="button" onClick={onUpload} disabled={view !== 'files' || uploading}>
+            <Upload size={18} />
+            Upload
           </button>
         </div>
-        <button className="iconTextButton" type="button" onClick={onCreateFolder} disabled={view !== 'files'}>
-          <FolderPlus size={18} />
-          Folder
-        </button>
-        <button className="iconTextButton" type="button" onClick={onUpload} disabled={view !== 'files' || uploading}>
-          <Upload size={18} />
-          Upload
-        </button>
-      </div>
+      ) : null}
     </div>
   );
 }

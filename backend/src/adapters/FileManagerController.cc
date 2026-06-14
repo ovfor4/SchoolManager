@@ -72,7 +72,7 @@ void FileManagerController::uploadFile(const drogon::HttpRequestPtr& request,
             optionalNonEmpty(request->getParameter("parent_id")),
             infra::FileUploadPayload{
                 .file_name = upload.getFileName().empty() ? "uploaded_file" : upload.getFileName(),
-                .mime_type = "application/octet-stream",
+                .mime_type = std::string(config::octetStreamMimeType),
                 .size_bytes = upload.fileLength(),
                 .write_temp_file =
                     [&upload](const std::filesystem::path& path) {

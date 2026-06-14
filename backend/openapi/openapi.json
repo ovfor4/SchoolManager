@@ -528,6 +528,46 @@
           }
         }
       }
+    },
+    "/api/file-templates/generate": {
+      "post": {
+        "summary": "Generate files from a global template for one or more students",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileTemplateGenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated text file for one student, or zip archive for multiple students",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or unsupported template type"
+          },
+          "404": {
+            "description": "Template file or student not found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -555,7 +595,8 @@
         "schema": {
           "type": "string",
           "enum": [
-            "student_uploads"
+            "student_uploads",
+            "global_templates"
           ]
         }
       },
@@ -681,6 +722,26 @@
           },
           "notes": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FileTemplateGenerateRequest": {
+        "type": "object",
+        "required": [
+          "template_entry_id",
+          "student_ids"
+        ],
+        "properties": {
+          "template_entry_id": {
+            "type": "string"
+          },
+          "student_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
           }
         },
         "additionalProperties": false

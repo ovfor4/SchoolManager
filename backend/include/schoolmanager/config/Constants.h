@@ -29,6 +29,8 @@ inline constexpr std::string_view webSocketScopeParameter = "scope";
 inline constexpr std::string_view webSocketSchoolScope = "school";
 
 inline constexpr std::string_view studentUploadsContextType = "student_uploads";
+inline constexpr std::string_view globalTemplatesContextType = "global_templates";
+inline constexpr std::string_view defaultGlobalTemplatesContextId = "default";
 
 inline constexpr std::string_view fileEntryKindFile = "file";
 inline constexpr std::string_view fileEntryKindFolder = "folder";
@@ -38,6 +40,19 @@ inline constexpr std::string_view fileEntryStatusActive = "active";
 inline constexpr std::string_view fileEntryStatusTrashed = "trashed";
 
 inline constexpr std::string_view trashFolderName = ".trash";
+inline constexpr std::string_view studentsFolderName = "students";
+inline constexpr std::string_view uploadsFolderName = "uploads";
+inline constexpr std::string_view globalTemplatesFolderName = "global_templates";
+inline constexpr std::string_view studentDataDbFileName = "data.db";
+inline constexpr std::string_view schoolIndexDbFileName = "school_index.db";
+
+inline constexpr std::string_view octetStreamMimeType = "application/octet-stream";
+inline constexpr std::string_view plainTextMimeType = "text/plain";
+inline constexpr std::string_view zipMimeType = "application/zip";
+inline constexpr std::string_view generatedTemplatesZipFileName = "generated-files.zip";
+inline constexpr std::uint16_t zipCompressionMethodDeflate = 8;
+inline constexpr int zipCompressionLevel = 6;
+inline constexpr std::string_view templateReservedStudentNameVariable = "__name";
 
 inline constexpr std::string_view fileManagerWebSocketResource = "file_manager";
 inline constexpr std::string_view fileManagerChangedMessageType = "file_manager.changed";

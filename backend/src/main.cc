@@ -1,11 +1,13 @@
 #include "schoolmanager/adapters/BroadcastHub.h"
 #include "schoolmanager/adapters/FileManagerController.h"
+#include "schoolmanager/adapters/FileTemplateController.h"
 #include "schoolmanager/adapters/GradesController.h"
 #include "schoolmanager/adapters/RealtimePublisher.h"
 #include "schoolmanager/adapters/StudentInfoController.h"
 #include "schoolmanager/adapters/StudentWebSocketController.h"
 #include "schoolmanager/adapters/StudentsController.h"
 #include "schoolmanager/adapters/SystemController.h"
+#include "schoolmanager/application/FileTemplateUseCases.h"
 #include "schoolmanager/application/GradeUseCases.h"
 #include "schoolmanager/application/StudentInfoUseCases.h"
 #include "schoolmanager/application/StudentUseCases.h"
@@ -17,6 +19,7 @@
 #include "schoolmanager/infra/SchoolIndexRepository.h"
 #include "schoolmanager/infra/StoragePaths.h"
 #include "schoolmanager/infra/StudentDataRepository.h"
+#include "schoolmanager/infra/ZipArchiveWriter.h"
 
 #include <drogon/drogon.h>
 
@@ -116,6 +119,15 @@ int main()
                                                                               studentData);
         auto gradeUseCases =
             std::make_shared<schoolmanager::application::GradeUseCases>(schoolIndex, studentData);
+        auto templateProcessors =
+            schoolmanager::application::createDefaultTemplateProcessorRegistry();
+        auto fileTemplateUseCases =
+            std::make_shared<schoolmanager::application::FileTemplateUseCases>(
+                fileManager,
+                schoolIndex,
+                studentData,
+                templateProcessors,
+                schoolmanager::infra::ZipArchiveWriter{});
 
         schoolIndex->initialize();
 
@@ -154,6 +166,9 @@ int main()
             std::make_shared<schoolmanager::adapters::FileManagerController>(
                 fileManager,
                 realtimePublisher));
+        drogon::app().registerController(
+            std::make_shared<schoolmanager::adapters::FileTemplateController>(
+                fileTemplateUseCases));
         schoolmanager::adapters::StudentWebSocketController::setBroadcastHub(broadcastHub);
         schoolmanager::adapters::StudentWebSocketController::initPathRouting();
 

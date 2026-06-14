@@ -1,5 +1,7 @@
 #include "schoolmanager/infra/StoragePaths.h"
 
+#include "schoolmanager/config/Constants.h"
+
 #include <cctype>
 
 namespace schoolmanager::infra {
@@ -12,6 +14,7 @@ StoragePaths::StoragePaths(std::filesystem::path root)
 void StoragePaths::ensureRoot() const
 {
     std::filesystem::create_directories(studentsRoot());
+    std::filesystem::create_directories(globalTemplatesRoot());
 }
 
 const std::filesystem::path& StoragePaths::root() const noexcept
@@ -21,12 +24,12 @@ const std::filesystem::path& StoragePaths::root() const noexcept
 
 std::filesystem::path StoragePaths::schoolIndexDb() const
 {
-    return root_ / "school_index.db";
+    return root_ / std::string(config::schoolIndexDbFileName);
 }
 
 std::filesystem::path StoragePaths::studentsRoot() const
 {
-    return root_ / "students";
+    return root_ / std::string(config::studentsFolderName);
 }
 
 std::filesystem::path StoragePaths::studentDir(std::string_view studentId) const
@@ -36,12 +39,22 @@ std::filesystem::path StoragePaths::studentDir(std::string_view studentId) const
 
 std::filesystem::path StoragePaths::studentDataDb(std::string_view studentId) const
 {
-    return studentDir(studentId) / "data.db";
+    return studentDir(studentId) / std::string(config::studentDataDbFileName);
 }
 
 std::filesystem::path StoragePaths::studentUploadsDir(std::string_view studentId) const
 {
-    return studentDir(studentId) / "uploads";
+    return studentDir(studentId) / std::string(config::uploadsFolderName);
+}
+
+std::filesystem::path StoragePaths::globalTemplatesRoot() const
+{
+    return root_ / std::string(config::globalTemplatesFolderName);
+}
+
+std::filesystem::path StoragePaths::globalTemplateLibraryDir(std::string_view libraryId) const
+{
+    return globalTemplatesRoot() / std::string(libraryId);
 }
 
 std::string sanitizeFileName(std::string_view name)

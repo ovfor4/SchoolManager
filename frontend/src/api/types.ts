@@ -37,7 +37,7 @@ export type StudentInfoField = {
 };
 
 export type FileContext = {
-  type: 'student_uploads';
+  type: 'student_uploads' | 'global_templates';
   id: string;
 };
 
@@ -81,6 +81,16 @@ export type StudentInfoDefinitionPatch = Partial<Pick<StudentInfoDefinition, 'na
 export type StudentInfoValuePatch = Pick<StudentInfoField, 'value'>;
 
 export type GradePatch = Partial<Pick<Grade, 'title' | 'score' | 'max_score' | 'occurred_on' | 'notes'>>;
+
+export type FileTemplateGenerateRequest = {
+  template_entry_id: string;
+  student_ids: string[];
+};
+
+export type GeneratedFileDownload = {
+  blob: Blob;
+  fileName: string;
+};
 
 export type FileManagerAction =
   | 'entry.created'
@@ -145,11 +155,11 @@ export type WsMessage =
     }
   | {
       type: 'file_manager.changed';
-      student_id: string;
+      student_id?: string;
       resource: 'file_manager';
       id: string;
       field_id: string;
-      context_type: 'student_uploads';
+      context_type: FileContext['type'];
       context_id: string;
       action: FileManagerAction;
     };

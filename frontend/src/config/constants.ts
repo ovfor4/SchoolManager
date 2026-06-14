@@ -13,6 +13,9 @@ export const defaultBackendProxyHost = '127.0.0.1';
 export const defaultBackendProxyPort = 8080;
 
 export const apiRootPath = '/api';
+export const studentUploadsContextType = 'student_uploads';
+export const globalTemplatesContextType = 'global_templates';
+export const defaultGlobalTemplatesContextId = 'default';
 export const webSocketStudentsPath = `${apiRootPath}/ws/students`;
 export const webSocketStudentIdParameter = 'student_id';
 export const webSocketScopeParameter = 'scope';

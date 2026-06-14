@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { webSocketUrl } from './client';
+import { fileManagerEntriesPrefix, fileManagerTrashKey } from './fileManagerKeys';
 import { apiPaths } from './paths';
 import {
   sortStudentInfoDefinitions,
@@ -8,6 +9,7 @@ import {
   studentInfoFieldFromDefinition,
 } from './studentInfoFields';
 import type { Student, StudentDetail, StudentInfoDefinition, WsMessage } from './types';
+import { globalTemplatesContextType } from '../config/constants';
 import { useDirtyStore } from '../store/dirtyStore';
 
 function upsertStudent(students: Student[] = [], student: Student): Student[] {
@@ -37,6 +39,13 @@ export function useSchoolSocket() {
       };
       socket.onmessage = (event) => {
         const message = JSON.parse(event.data) as WsMessage;
+
+        if (message.type === 'file_manager.changed' && message.context_type === globalTemplatesContextType) {
+          const context = { type: message.context_type, id: message.context_id };
+          void queryClient.invalidateQueries({ queryKey: fileManagerEntriesPrefix(context) });
+          void queryClient.invalidateQueries({ queryKey: fileManagerTrashKey(context) });
+          return;
+        }
 
         if (message.resource === 'student' && (message.type === 'student.created' || message.type === 'student.updated')) {
           queryClient.setQueryData<Student[]>(['students'], (old) => upsertStudent(old, message.student));

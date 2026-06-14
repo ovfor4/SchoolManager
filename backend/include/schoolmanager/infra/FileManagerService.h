@@ -53,6 +53,8 @@ class FileManagerService {
 
     std::vector<domain::FileEntry> listEntries(const domain::FileContext& context,
                                                const std::optional<std::string>& parentId);
+    std::optional<domain::FileEntry> getEntry(const domain::FileContext& context,
+                                              std::string_view entryId);
     domain::FileEntry uploadFile(const domain::FileContext& context,
                                  const std::optional<std::string>& parentId,
                                  const FileUploadPayload& payload);
